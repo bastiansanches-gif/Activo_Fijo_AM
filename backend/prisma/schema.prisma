@@ -1,0 +1,140 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlserver"
+  url      = env("DATABASE_URL")
+}
+
+model Dimensiones {
+  IdDimension       Int                       @id @default(autoincrement())
+  NumeroDimension   String                    @unique @db.NVarChar(50)
+  NombreDimension   String                    @db.NVarChar(150)
+  Activo            Boolean                   @default(true)
+  Usuarios          Usuarios[]
+  ActivoFijo        ActivoFijo[]
+  MovimientosOrigen MovimientosActivoFijo[]   @relation("DimensionAnterior")
+  MovimientosDestino MovimientosActivoFijo[]  @relation("DimensionNueva")
+}
+
+model Usuarios {
+  IdUsuario              Int                      @id @default(autoincrement())
+  NombreUsuario          String                   @db.NVarChar(100)
+  ApellidoPaterno        String                   @db.NVarChar(100)
+  ApellidoMaterno        String?                  @db.NVarChar(100)
+  FechaIngreso           DateTime
+  FinContrato            DateTime?
+  IdCargo                Int
+  IdDimension            Int
+  Activo                 Boolean                  @default(true)
+  IdCuenta               Int?
+  Cargo                  Cargos                   @relation(fields: [IdCargo], references: [IdRol], onDelete: NoAction, onUpdate: NoAction)
+  Dimension              Dimensiones              @relation(fields: [IdDimension], references: [IdDimension], onDelete: NoAction, onUpdate: NoAction)
+  Cuenta                 Cuenta?                  @relation(fields: [IdCuenta], references: [IdCuenta], onDelete: NoAction, onUpdate: NoAction)
+  ActivoFijo             ActivoFijo[]
+  MovimientosAnteriores  MovimientosActivoFijo[]  @relation("UsuarioAnterior")
+  MovimientosNuevos      MovimientosActivoFijo[]  @relation("UsuarioNuevo")
+}
+
+model Cuenta {
+  IdCuenta     Int         @id @default(autoincrement())
+  NombreCuenta String      @unique @db.NVarChar(100)
+  Usuarios     Usuarios[]
+}
+
+model Cargos {
+  // El MER original usa IdRol; semanticamente representa el cargo del usuario.
+  IdRol     Int         @id @default(autoincrement())
+  NombreRol String      @unique @db.NVarChar(100)
+  Usuarios  Usuarios[]
+}
+
+model Marcas {
+  IdMarca     Int          @id @default(autoincrement())
+  NombreMarca String       @unique @db.NVarChar(100)
+  Modelos     Modelos[]
+  ActivoFijo  ActivoFijo[]
+}
+
+model Modelos {
+  IdModelo     Int          @id @default(autoincrement())
+  IdMarca      Int
+  NombreModelo String       @db.NVarChar(100)
+  Marca        Marcas       @relation(fields: [IdMarca], references: [IdMarca], onDelete: NoAction, onUpdate: NoAction)
+  ActivoFijo   ActivoFijo[]
+
+  @@unique([IdMarca, NombreModelo])
+}
+
+model Procesadores {
+  IdProcesador      Int          @id @default(autoincrement())
+  NombreProcesador  String       @unique @db.NVarChar(100)
+  ActivoFijo        ActivoFijo[]
+}
+
+model DiscosDuros {
+  IdDiscoDuro Int          @id @default(autoincrement())
+  TipoDisco   String       @db.NVarChar(50)
+  CapacidadGB Int
+  Descripcion String       @db.NVarChar(150)
+  ActivoFijo  ActivoFijo[]
+}
+
+model EstadosActivo {
+  IdEstadoActivo Int          @id @default(autoincrement())
+  NombreEstado   String       @unique @db.NVarChar(100)
+  ActivoFijo     ActivoFijo[]
+}
+
+model ActivoFijo {
+  IdActivoFijo       Int                       @id @default(autoincrement())
+  IdDimension        Int
+  IdUsuario          Int?
+  RAM                String?                   @db.NVarChar(50)
+  IdMarca            Int
+  IdModelo           Int
+  IdProcesador       Int?
+  IdDiscoDuro        Int?
+  Serial             String                    @unique @db.NVarChar(150)
+  NumeroFactura      String?                   @db.NVarChar(100)
+  RutProveedor       String?                   @db.NVarChar(30)
+  FechaCompra        DateTime?
+  Detalles           String?                   @db.NVarChar(1000)
+  EsAF               Boolean
+  IdEstadoActivo     Int
+  Dimension          Dimensiones               @relation(fields: [IdDimension], references: [IdDimension], onDelete: NoAction, onUpdate: NoAction)
+  Usuario            Usuarios?                 @relation(fields: [IdUsuario], references: [IdUsuario], onDelete: NoAction, onUpdate: NoAction)
+  Marca              Marcas                    @relation(fields: [IdMarca], references: [IdMarca], onDelete: NoAction, onUpdate: NoAction)
+  Modelo             Modelos                   @relation(fields: [IdModelo], references: [IdModelo], onDelete: NoAction, onUpdate: NoAction)
+  Procesador         Procesadores?             @relation(fields: [IdProcesador], references: [IdProcesador], onDelete: NoAction, onUpdate: NoAction)
+  DiscoDuro          DiscosDuros?              @relation(fields: [IdDiscoDuro], references: [IdDiscoDuro], onDelete: NoAction, onUpdate: NoAction)
+  EstadoActivo       EstadosActivo             @relation(fields: [IdEstadoActivo], references: [IdEstadoActivo], onDelete: NoAction, onUpdate: NoAction)
+  Movimientos        MovimientosActivoFijo[]
+}
+
+model MovimientosActivoFijo {
+  IdMovimiento       Int          @id @default(autoincrement())
+  IdActivoFijo       Int
+  IdDimensionAnterior Int
+  IdDimensionNueva   Int
+  IdUsuarioAnterior  Int?
+  IdUsuarioNuevo     Int?
+  FechaMovimiento    DateTime     @default(now())
+  Observacion        String?      @db.NVarChar(1000)
+  ActivoFijo         ActivoFijo   @relation(fields: [IdActivoFijo], references: [IdActivoFijo], onDelete: NoAction, onUpdate: NoAction)
+  DimensionAnterior  Dimensiones  @relation("DimensionAnterior", fields: [IdDimensionAnterior], references: [IdDimension], onDelete: NoAction, onUpdate: NoAction)
+  DimensionNueva     Dimensiones  @relation("DimensionNueva", fields: [IdDimensionNueva], references: [IdDimension], onDelete: NoAction, onUpdate: NoAction)
+  UsuarioAnterior    Usuarios?    @relation("UsuarioAnterior", fields: [IdUsuarioAnterior], references: [IdUsuario], onDelete: NoAction, onUpdate: NoAction)
+  UsuarioNuevo       Usuarios?    @relation("UsuarioNuevo", fields: [IdUsuarioNuevo], references: [IdUsuario], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model Checklist {
+  IdChecklist       Int      @id @default(autoincrement())
+  NombreChecklist   String   @db.NVarChar(150)
+  TipoChecklist     String?  @db.NVarChar(100)
+  NombreArchivo     String   @db.NVarChar(255)
+  RutaArchivo       String   @db.NVarChar(500)
+  ExtensionArchivo  String   @db.NVarChar(20)
+  FechaCreacion     DateTime @default(now())
+}

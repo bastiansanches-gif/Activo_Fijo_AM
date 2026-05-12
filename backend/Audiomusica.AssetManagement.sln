@@ -1,0 +1,36 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Audiomusica.Domain", "src\Audiomusica.Domain\Audiomusica.Domain.csproj", "{4D8C8F27-5802-4D2E-AB6B-AB2C6B68FA01}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Audiomusica.Application", "src\Audiomusica.Application\Audiomusica.Application.csproj", "{8E0B9E3E-812A-47B5-9A4E-2E4EC5A2E6A2}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Audiomusica.Infrastructure", "src\Audiomusica.Infrastructure\Audiomusica.Infrastructure.csproj", "{C646D205-2F0F-424C-9B9D-3E91D4932FAE}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Audiomusica.WebApi", "src\Audiomusica.WebApi\Audiomusica.WebApi.csproj", "{CBB42E3E-F983-4E22-ABAA-64D0F4904D2D}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{4D8C8F27-5802-4D2E-AB6B-AB2C6B68FA01}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4D8C8F27-5802-4D2E-AB6B-AB2C6B68FA01}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4D8C8F27-5802-4D2E-AB6B-AB2C6B68FA01}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4D8C8F27-5802-4D2E-AB6B-AB2C6B68FA01}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8E0B9E3E-812A-47B5-9A4E-2E4EC5A2E6A2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8E0B9E3E-812A-47B5-9A4E-2E4EC5A2E6A2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8E0B9E3E-812A-47B5-9A4E-2E4EC5A2E6A2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8E0B9E3E-812A-47B5-9A4E-2E4EC5A2E6A2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C646D205-2F0F-424C-9B9D-3E91D4932FAE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C646D205-2F0F-424C-9B9D-3E91D4932FAE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C646D205-2F0F-424C-9B9D-3E91D4932FAE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C646D205-2F0F-424C-9B9D-3E91D4932FAE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CBB42E3E-F983-4E22-ABAA-64D0F4904D2D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CBB42E3E-F983-4E22-ABAA-64D0F4904D2D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CBB42E3E-F983-4E22-ABAA-64D0F4904D2D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CBB42E3E-F983-4E22-ABAA-64D0F4904D2D}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

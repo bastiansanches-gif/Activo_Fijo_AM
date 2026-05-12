@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Audiomusica.Domain\Audiomusica.Domain.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Contracts\*.cs" />
+    <Compile Include="DTOs\*.cs" />
+  </ItemGroup>
+</Project>
