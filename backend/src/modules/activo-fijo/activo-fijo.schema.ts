@@ -15,7 +15,7 @@ const body = z.object({
   RutProveedor: z.string().min(1).nullable().optional(),
   FechaCompra: z.coerce.date().nullable().optional(),
   Detalles: z.string().min(1).nullable().optional(),
-  EsAF: z.boolean(),
+  EsAF: z.boolean().optional(),
   IdEstadoActivo: z.number().int().positive(),
 });
 

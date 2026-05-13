@@ -1,12 +1,16 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { LogOut, Moon, Sun } from "lucide-react";
+import { LogOut, Menu, Moon, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { authService } from "@/services/auth-service";
 
-export function Header() {
+type HeaderProps = {
+  onMenuClick?: () => void;
+};
+
+export function Header({ onMenuClick }: HeaderProps) {
   const router = useRouter();
   const [dark, setDark] = useState(false);
   const user = authService.getSession();
@@ -18,9 +22,14 @@ export function Header() {
   return (
     <header className="sticky top-0 z-30 border-b bg-background/80 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        <div>
-          <p className="text-xs uppercase text-muted-foreground">Gestion TI</p>
-          <h1 className="text-base font-semibold">Activos fijos corporativos</h1>
+        <div className="flex min-w-0 items-center gap-3">
+          <Button className="lg:hidden" variant="ghost" size="icon" onClick={onMenuClick} aria-label="Abrir menu">
+            <Menu className="h-5 w-5" />
+          </Button>
+          <div className="min-w-0">
+            <p className="text-xs uppercase text-muted-foreground">Gestion TI</p>
+            <h1 className="truncate text-base font-semibold">Activos fijos corporativos</h1>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="icon" onClick={() => setDark((value) => !value)} aria-label="Cambiar tema">

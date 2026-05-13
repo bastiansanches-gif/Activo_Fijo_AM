@@ -61,18 +61,64 @@ public sealed class RolesController : CrudController<Rol>
 public sealed class DimensionesController : CrudController<Dimension>
 {
     public DimensionesController(IEntityService<Dimension> service) : base(service) { }
+
+    [NonAction]
+    public override Task<ActionResult<Dimension>> Create(Dimension entity, CancellationToken cancellationToken)
+    {
+        return Task.FromResult<ActionResult<Dimension>>(StatusCode(StatusCodes.Status403Forbidden, "Las dimensiones son sincronizadas desde SAP y no pueden modificarse manualmente."));
+    }
+
+    [NonAction]
+    public override Task<ActionResult<Dimension>> Update(int id, Dimension entity, CancellationToken cancellationToken)
+    {
+        return Task.FromResult<ActionResult<Dimension>>(StatusCode(StatusCodes.Status403Forbidden, "Las dimensiones son sincronizadas desde SAP y no pueden modificarse manualmente."));
+    }
+
+    [NonAction]
+    public override Task<IActionResult> Delete(int id, CancellationToken cancellationToken)
+    {
+        return Task.FromResult<IActionResult>(StatusCode(StatusCodes.Status403Forbidden, "Las dimensiones son sincronizadas desde SAP y no pueden modificarse manualmente."));
+    }
 }
 
 [Route("api/usuarios")]
 public sealed class UsuariosController : CrudController<Usuario>
 {
-    public UsuariosController(IEntityService<Usuario> service) : base(service) { }
+    private readonly AssetManagementDbContext _db;
+
+    public UsuariosController(IEntityService<Usuario> service, AssetManagementDbContext db) : base(service)
+    {
+        _db = db;
+    }
+
+    [HttpGet]
+    public override async Task<ActionResult<IReadOnlyList<Usuario>>> GetAll(CancellationToken cancellationToken)
+    {
+        return Ok(await _db.Usuarios.AsNoTracking()
+            .Include(x => x.Rol)
+            .Include(x => x.Dimension)
+            .Include(x => x.UsuarioLicencias)
+            .ThenInclude(x => x.Licencia)
+            .ToListAsync(cancellationToken));
+    }
 }
 
 [Route("api/cuenta")]
 public sealed class CuentaController : CrudController<Cuenta>
 {
     public CuentaController(IEntityService<Cuenta> service) : base(service) { }
+}
+
+[Route("api/licencias")]
+public sealed class LicenciasController : CrudController<Licencia>
+{
+    public LicenciasController(IEntityService<Licencia> service) : base(service) { }
+}
+
+[Route("api/usuario-licencias")]
+public sealed class UsuarioLicenciasController : CrudController<UsuarioLicencia>
+{
+    public UsuarioLicenciasController(IEntityService<UsuarioLicencia> service) : base(service) { }
 }
 
 [Route("api/marcas")]
@@ -109,10 +155,73 @@ public sealed class EstadosActivoController : CrudController<EstadoActivo>
 public sealed class ActivoFijoController : CrudController<ActivoFijo>
 {
     private readonly AssetManagementDbContext _db;
+    private readonly IEntityService<ActivoFijo> _service;
 
     public ActivoFijoController(IEntityService<ActivoFijo> service, AssetManagementDbContext db) : base(service)
     {
         _db = db;
+        _service = service;
+    }
+
+    [HttpPost]
+    public override async Task<ActionResult<ActivoFijo>> Create(ActivoFijo entity, CancellationToken cancellationToken)
+    {
+        ApplyOperationalRules(entity);
+        var created = await _service.CreateAsync(entity, cancellationToken);
+        return Ok(created);
+    }
+
+    [HttpPut("{id:int}")]
+    public override async Task<ActionResult<ActivoFijo>> Update(int id, ActivoFijo entity, CancellationToken cancellationToken)
+    {
+        ApplyOperationalRules(entity);
+
+        var current = await _db.ActivosFijos.FirstOrDefaultAsync(x => x.IdActivoFijo == id, cancellationToken);
+        if (current is null)
+        {
+            return NotFound();
+        }
+
+        var previousIdDimension = current.IdDimension;
+        var previousIdUsuario = current.IdUsuario;
+
+        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
+
+        current.IdDimension = entity.IdDimension;
+        current.IdUsuario = entity.IdUsuario;
+        current.RAM = entity.RAM;
+        current.IdMarca = entity.IdMarca;
+        current.IdModelo = entity.IdModelo;
+        current.IdProcesador = entity.IdProcesador;
+        current.IdDiscoDuro = entity.IdDiscoDuro;
+        current.Serial = entity.Serial;
+        current.NumeroFactura = entity.NumeroFactura;
+        current.RutProveedor = entity.RutProveedor;
+        current.FechaCompra = entity.FechaCompra;
+        current.Detalles = entity.Detalles;
+        current.EsAF = entity.EsAF;
+        current.IdUsuarioRegistro = entity.IdUsuarioRegistro;
+        current.IdEstadoActivo = entity.IdEstadoActivo;
+        current.Activo = entity.Activo;
+
+        if (previousIdDimension != current.IdDimension || previousIdUsuario != current.IdUsuario)
+        {
+            _db.MovimientosActivoFijo.Add(new MovimientoActivoFijo
+            {
+                IdActivoFijo = current.IdActivoFijo,
+                IdDimensionAnterior = previousIdDimension,
+                IdDimensionNueva = current.IdDimension,
+                IdUsuarioAnterior = previousIdUsuario,
+                IdUsuarioNuevo = current.IdUsuario,
+                FechaMovimiento = DateTime.UtcNow,
+                Observacion = "Movimiento automatico por actualizacion de usuario o dimension."
+            });
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        return Ok(current);
     }
 
     [HttpGet("serial/{serial}")]
@@ -138,6 +247,11 @@ public sealed class ActivoFijoController : CrudController<ActivoFijo>
     public async Task<ActionResult<IReadOnlyList<ActivoFijo>>> GetByEstado(int idEstadoActivo, CancellationToken cancellationToken)
     {
         return Ok(await _db.ActivosFijos.AsNoTracking().Where(x => x.IdEstadoActivo == idEstadoActivo).ToListAsync(cancellationToken));
+    }
+
+    private static void ApplyOperationalRules(ActivoFijo entity)
+    {
+        entity.EsAF = true;
     }
 }
 

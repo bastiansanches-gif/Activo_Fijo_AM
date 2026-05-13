@@ -27,7 +27,12 @@ export async function apiClient<T>(path: string, options: RequestOptions = {}): 
     return undefined as T;
   }
 
-  return response.json() as Promise<T>;
+  const payload = await response.json();
+  if (payload && typeof payload === "object" && "data" in payload && "success" in payload) {
+    return payload.data as T;
+  }
+
+  return payload as T;
 }
 
 export { API_BASE_URL };

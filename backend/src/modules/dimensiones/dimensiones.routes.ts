@@ -1,5 +1,10 @@
-import { createCrudRoutes } from "../../shared/utils/crud";
+import { Router } from "express";
 import { dimensionesController } from "./dimensiones.controller";
-import { createDimensionSchema, updateDimensionSchema } from "./dimensiones.schema";
 
-export const dimensionesRoutes = createCrudRoutes(dimensionesController, createDimensionSchema, updateDimensionSchema);
+export const dimensionesRoutes = Router();
+
+dimensionesRoutes.get("/", dimensionesController.findAll);
+dimensionesRoutes.get("/:id", dimensionesController.findById);
+
+// Escritura reservada para sincronizacion SAP/job interno futuro.
+// No exponer POST/PUT/DELETE a usuarios del sistema.

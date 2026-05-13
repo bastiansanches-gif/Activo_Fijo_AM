@@ -18,6 +18,9 @@ public class Dimension : IHasActivo
     public int IdDimension { get; set; }
     [MaxLength(30)] public string NumeroDimension { get; set; } = string.Empty;
     [MaxLength(120)] public string NombreDimension { get; set; } = string.Empty;
+    [MaxLength(80)] public string Pais { get; set; } = string.Empty;
+    [MaxLength(120)] public string Area { get; set; } = string.Empty;
+    [MaxLength(120)] public string SubArea { get; set; } = string.Empty;
     public bool Activo { get; set; } = true;
 }
 
@@ -30,9 +33,12 @@ public class Cuenta
 public class Usuario : IHasActivo
 {
     public int IdUsuario { get; set; }
+    [MaxLength(20)] public string Rut { get; set; } = string.Empty;
     [MaxLength(80)] public string NombreUsuario { get; set; } = string.Empty;
     [MaxLength(80)] public string ApellidoPaterno { get; set; } = string.Empty;
     [MaxLength(80)] public string? ApellidoMaterno { get; set; }
+    [MaxLength(160)] public string CorreoCorporativo { get; set; } = string.Empty;
+    [MaxLength(120)] public string Cargo { get; set; } = string.Empty;
     public DateTime FechaIngreso { get; set; }
     public DateTime? FinContrato { get; set; }
     public int IdRol { get; set; }
@@ -42,6 +48,22 @@ public class Usuario : IHasActivo
     public Rol? Rol { get; set; }
     public Dimension? Dimension { get; set; }
     public Cuenta? Cuenta { get; set; }
+    public ICollection<UsuarioLicencia> UsuarioLicencias { get; set; } = [];
+}
+
+public class Licencia
+{
+    public int IdLicencia { get; set; }
+    [MaxLength(120)] public string NombreLicencia { get; set; } = string.Empty;
+}
+
+public class UsuarioLicencia
+{
+    public int IdUsuarioLicencia { get; set; }
+    public int IdUsuario { get; set; }
+    public int IdLicencia { get; set; }
+    public Usuario? Usuario { get; set; }
+    public Licencia? Licencia { get; set; }
 }
 
 public class Marca
@@ -94,6 +116,7 @@ public class ActivoFijo : IHasActivo
     public DateTime FechaCompra { get; set; }
     [MaxLength(500)] public string? Detalles { get; set; }
     public bool EsAF { get; set; } = true;
+    public int? IdUsuarioRegistro { get; set; }
     public int IdEstadoActivo { get; set; }
     public bool Activo { get; set; } = true;
     public Dimension? Dimension { get; set; }

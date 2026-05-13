@@ -1,6 +1,6 @@
 # Audiomusica Asset Management
 
-Sistema para gestion de activos fijos, usuarios, dimensiones, checklist, movimientos y herramientas de informatica.
+Sistema para gestion interna de activos fijos, usuarios con acceso, dimensiones SAP, checklist, movimientos y herramientas de informatica.
 
 ## Backend .NET 8
 
@@ -34,9 +34,25 @@ npm run dev
 
 ## Modulos
 
-Endpoints CRUD: roles, dimensiones, usuarios, cuenta, marcas, modelos, procesadores, discos-duros, estados-activo, activo-fijo, movimientos-activo-fijo, checklist y herramientas.
+Endpoints CRUD: roles, usuarios, cuenta, marcas, modelos, procesadores, discos-duros, estados-activo, activo-fijo, movimientos-activo-fijo, checklist y herramientas.
+
+Dimensiones es solo lectura para usuarios del sistema:
+
+- `GET /api/dimensiones`
+- `GET /api/dimensiones/{id}`
+
+La escritura de dimensiones queda reservada para sincronizacion SAP/job interno futuro.
 
 Especiales: filtros de activo fijo por serial/dimension/usuario/estado, movimientos por activo, checklist download, herramientas por dimension/estado y dashboard resumen.
+
+## Reglas funcionales vigentes
+
+- No existe pantalla visual general llamada Maestros.
+- Marca, Modelo, Procesador, Disco Duro y Estado Activo se administran desde los selectores del formulario de Nuevo Activo mediante "+ Agregar otro".
+- Dimension viene desde SAP y no se crea, edita ni elimina manualmente desde frontend.
+- Movimientos no tiene menu propio; se consultan en Dashboard y en el historial del detalle del activo.
+- Configuracion muestra solo datos y preferencias del usuario logueado.
+- Solo Admin gestiona usuarios con acceso al sistema.
 
 ## Docker
 

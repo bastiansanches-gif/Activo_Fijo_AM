@@ -14,7 +14,7 @@
     <ProjectReference Include="..\Audiomusica.Domain\Audiomusica.Domain.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Persistence\AssetManagementDbContextV2.cs" />
+    <Compile Include="Persistence\AssetManagementDbContext.cs" />
     <Compile Include="Services\*.cs" />
   </ItemGroup>
 </Project>

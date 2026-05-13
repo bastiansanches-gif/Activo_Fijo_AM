@@ -33,8 +33,8 @@ export const activoFijoService = {
   findByUsuario: (id: number) => activoFijoRepository.findByUsuario(id),
   findByEstado: (id: number) => activoFijoRepository.findByEstado(id),
 
-  // Crea activos respetando las FK definidas por el MER y delegando validacion de existencia a SQL/Prisma.
-  create: (data: Prisma.ActivoFijoUncheckedCreateInput) => activoFijoRepository.create(data),
+  // Crea activos fijos desde el modulo aprobado; EsAF se deriva en servidor.
+  create: (data: Prisma.ActivoFijoUncheckedCreateInput) => activoFijoRepository.create({ ...data, EsAF: true }),
 
   // Actualiza el activo y registra un movimiento cuando cambia dimension o usuario.
   async update(id: number, data: Prisma.ActivoFijoUncheckedUpdateInput) {

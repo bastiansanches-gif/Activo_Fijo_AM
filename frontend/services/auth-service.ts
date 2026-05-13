@@ -9,8 +9,14 @@ export const authService = {
     const user = mockAuthUsers.find((item) => item.username === credentials.username && item.password === credentials.password);
     if (!user) throw new Error("Credenciales invalidas");
     const session: UsuarioSistema = {
+      idUsuario: user.idUsuario,
       codUsuario: user.codUsuario,
       nomUsuario: user.nomUsuario,
+      apellidoPaterno: user.apellidoPaterno,
+      apellidoMaterno: user.apellidoMaterno,
+      email: user.email,
+      cargo: user.cargo,
+      dimension: user.dimension,
       tipoUsuario: user.tipoUsuario,
       activo: user.activo,
     };

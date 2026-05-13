@@ -2,14 +2,22 @@ import { apiClient } from "./apiClient";
 
 export type Dimension = {
   idDimension: number;
+  IdDimension?: number;
   numeroDimension: string;
+  NumeroDimension?: string;
   nombreDimension: string;
+  NombreDimension?: string;
+  pais?: string;
+  Pais?: string;
+  area?: string;
+  Area?: string;
+  subArea?: string;
+  SubArea?: string;
   activo: boolean;
+  Activo?: boolean;
 };
 
 export const dimensionesService = {
   list: () => apiClient<Dimension[]>("/dimensiones"),
-  create: (payload: Partial<Dimension>) => apiClient<Dimension>("/dimensiones", { method: "POST", body: JSON.stringify(payload) }),
-  update: (id: number, payload: Partial<Dimension>) => apiClient<Dimension>(`/dimensiones/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
-  remove: (id: number) => apiClient<void>(`/dimensiones/${id}`, { method: "DELETE" }),
+  getById: (id: number) => apiClient<Dimension>(`/dimensiones/${id}`),
 };
