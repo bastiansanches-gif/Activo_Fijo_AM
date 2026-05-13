@@ -5,6 +5,7 @@ import { LogOut, Menu, Moon, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { authService } from "@/services/auth-service";
+import type { UsuarioSistema } from "@/types/auth";
 
 type HeaderProps = {
   onMenuClick?: () => void;
@@ -13,11 +14,15 @@ type HeaderProps = {
 export function Header({ onMenuClick }: HeaderProps) {
   const router = useRouter();
   const [dark, setDark] = useState(false);
-  const user = authService.getSession();
+  const [user, setUser] = useState<UsuarioSistema | null>(null);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark);
   }, [dark]);
+
+  useEffect(() => {
+    setUser(authService.getSession());
+  }, []);
 
   return (
     <header className="sticky top-0 z-30 border-b bg-background/80 backdrop-blur-xl">

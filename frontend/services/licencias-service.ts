@@ -24,4 +24,5 @@ export const licenciasService = {
       method: "POST",
       body: JSON.stringify({ IdUsuario: idUsuario, IdLicencia: idLicencia }),
     }),
+  unassign: (idUsuarioLicencia: number) => apiClient<void>(`/usuario-licencias/${idUsuarioLicencia}`, { method: "DELETE" }),
 };

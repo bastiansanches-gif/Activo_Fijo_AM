@@ -4,9 +4,10 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { BarChart3, Boxes, ClipboardCheck, Hammer, Settings, Users } from "lucide-react";
+import { useEffect, useState } from "react";
 import { authService } from "@/services/auth-service";
 import { cn } from "@/lib/utils";
-import type { TipoUsuario } from "@/types/auth";
+import type { TipoUsuario, UsuarioSistema } from "@/types/auth";
 
 const items: Array<{ href: string; label: string; icon: React.ComponentType<{ className?: string }>; roles: TipoUsuario[] }> = [
   { href: "/dashboard", label: "Dashboard", icon: BarChart3, roles: ["ADMIN", "NORMAL"] },
@@ -24,7 +25,12 @@ type SidebarProps = {
 
 export function Sidebar({ className, onNavigate }: SidebarProps) {
   const pathname = usePathname();
-  const user = authService.getSession();
+  const [user, setUser] = useState<UsuarioSistema | null>(null);
+
+  useEffect(() => {
+    setUser(authService.getSession());
+  }, [pathname]);
+
   const visibleItems = items.filter((item) => user && item.roles.includes(user.tipoUsuario));
 
   return (

@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, CheckCircle2, ShieldCheck } from "lucide-react";
+import { AlertCircle, CheckCircle2, Search, ShieldCheck, UserRound } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -15,6 +15,7 @@ import { activoFijoService } from "@/services/activo-fijo-service";
 import { authService } from "@/services/auth-service";
 import { catalogosService, getId, getText } from "@/services/catalogos-service";
 import { dimensionesService, type Dimension } from "@/services/dimensionesService";
+import { licenciasService, type LicenciaApi } from "@/services/licencias-service";
 import { usuariosService, type UsuarioApi } from "@/services/usuarios-service";
 import { assetTypes, getAssetTypeName } from "./AssetTypeCards";
 
@@ -196,6 +197,10 @@ export function ActivoFijoForm() {
 
   if (!session) {
     return <Notice type="error" message="No existe usuario logueado. Inicia sesion para registrar activos." />;
+  }
+
+  if (selectedSlug === "usuario") {
+    return <UsuarioAssetForm />;
   }
 
   async function onSubmit(values: FormData) {
@@ -401,6 +406,277 @@ function getCargo(user: UsuarioApi) {
   const cargo = user.cargo ?? user.Cargo;
   if (typeof cargo === "string") return cargo || "Sin cargo";
   return user.cargoNombre ?? user.CargoNombre ?? cargo?.nombreRol ?? cargo?.NombreRol ?? user.rol?.nombreRol ?? user.Rol?.NombreRol ?? "Sin cargo";
+}
+
+function UsuarioAssetForm() {
+  const queryClient = useQueryClient();
+  const [query, setQuery] = useState("");
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedLicencias, setSelectedLicencias] = useState<number[]>([]);
+  const [form, setForm] = useState({
+    rut: "",
+    nombreUsuario: "",
+    apellidoPaterno: "",
+    apellidoMaterno: "",
+    correoCorporativo: "",
+    cargo: "",
+    idDimension: 0,
+  });
+  const [success, setSuccess] = useState("");
+  const [error, setError] = useState("");
+
+  const usuarios = useQuery({ queryKey: ["usuarios"], queryFn: usuariosService.list });
+  const dimensiones = useQuery({ queryKey: ["dimensiones"], queryFn: dimensionesService.list });
+  const licencias = useQuery({ queryKey: ["licencias"], queryFn: licenciasService.list });
+  const usuarioLicencias = useQuery({ queryKey: ["usuario-licencias"], queryFn: licenciasService.listByUsuario });
+
+  const filteredUsuarios = useMemo(() => {
+    const text = query.trim().toLowerCase();
+    if (!text) return usuarios.data ?? [];
+    return (usuarios.data ?? []).filter((usuario) =>
+      [
+        usuario.rut ?? usuario.Rut,
+        usuario.nombreUsuario ?? usuario.NombreUsuario,
+        usuario.apellidoPaterno ?? usuario.ApellidoPaterno,
+        usuario.apellidoMaterno ?? usuario.ApellidoMaterno,
+        usuario.correoCorporativo ?? usuario.CorreoCorporativo,
+        getCargo(usuario),
+        getDimensionName(usuario),
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(text),
+    );
+  }, [query, usuarios.data]);
+
+  const saveUsuario = useMutation({
+    mutationFn: async () => {
+      setError("");
+      const payload: Partial<UsuarioApi> = {
+        Rut: form.rut,
+        NombreUsuario: form.nombreUsuario,
+        ApellidoPaterno: form.apellidoPaterno,
+        ApellidoMaterno: form.apellidoMaterno || null,
+        CorreoCorporativo: form.correoCorporativo,
+        Cargo: form.cargo,
+        FechaIngreso: new Date().toISOString(),
+        IdRol: 2,
+        IdDimension: form.idDimension,
+        Activo: true,
+      };
+      const saved = selectedId ? await usuariosService.update(selectedId, payload) : await usuariosService.create(payload);
+      const idUsuario = saved.idUsuario ?? saved.IdUsuario ?? selectedId;
+      if (!idUsuario) return saved;
+      await syncLicencias(idUsuario, selectedLicencias, usuarioLicencias.data ?? []);
+      return saved;
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["usuarios"] }),
+        queryClient.invalidateQueries({ queryKey: ["usuario-licencias"] }),
+      ]);
+      setSuccess(selectedId ? "Usuario actualizado correctamente." : "Usuario registrado correctamente.");
+    },
+    onError: () => {
+      setError("No se pudo guardar el usuario. Revisa los datos e intenta nuevamente.");
+    },
+  });
+
+  function selectUsuario(usuario: UsuarioApi) {
+    const id = usuario.idUsuario ?? usuario.IdUsuario ?? null;
+    setSelectedId(id);
+    setSuccess("");
+    setError("");
+    setForm({
+      rut: usuario.rut ?? usuario.Rut ?? "",
+      nombreUsuario: usuario.nombreUsuario ?? usuario.NombreUsuario ?? "",
+      apellidoPaterno: usuario.apellidoPaterno ?? usuario.ApellidoPaterno ?? "",
+      apellidoMaterno: usuario.apellidoMaterno ?? usuario.ApellidoMaterno ?? "",
+      correoCorporativo: usuario.correoCorporativo ?? usuario.CorreoCorporativo ?? "",
+      cargo: getCargo(usuario),
+      idDimension: usuario.idDimension ?? usuario.IdDimension ?? 0,
+    });
+    setSelectedLicencias(getUsuarioLicenciaIds(usuario));
+  }
+
+  function clearForm() {
+    setSelectedId(null);
+    setSelectedLicencias([]);
+    setSuccess("");
+    setError("");
+    setForm({
+      rut: "",
+      nombreUsuario: "",
+      apellidoPaterno: "",
+      apellidoMaterno: "",
+      correoCorporativo: "",
+      cargo: "",
+      idDimension: 0,
+    });
+  }
+
+  return (
+    <div className="space-y-6">
+      <Card className="border-blue-100 bg-[#F5F8FF] shadow-soft">
+        <CardContent className="flex gap-3 p-5 text-sm text-muted-foreground">
+          <UserRound className="mt-0.5 h-5 w-5 shrink-0 text-[#0057B8]" />
+          Este flujo administra datos del usuario y sus licencias. No registra activo fijo fisico.
+        </CardContent>
+      </Card>
+
+      {success && <Notice type="success" message={success} />}
+      {error && <Notice type="error" message={error} />}
+
+      <Card className="border-blue-100 shadow-soft">
+        <CardHeader><CardTitle>Buscar usuario</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+            <Input
+              className="pl-9"
+              placeholder="Buscar por rut, nombre, apellidos, correo, cargo o dimension"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </div>
+          <div className="max-h-64 overflow-auto rounded-2xl border">
+            {usuarios.isLoading && <p className="p-4 text-sm text-muted-foreground">Cargando usuarios...</p>}
+            {usuarios.error && <p className="p-4 text-sm text-destructive">No se pudo cargar usuarios.</p>}
+            {filteredUsuarios.map((usuario) => {
+              const id = usuario.idUsuario ?? usuario.IdUsuario ?? 0;
+              const active = selectedId === id;
+              return (
+                <button
+                  type="button"
+                  key={id}
+                  onClick={() => selectUsuario(usuario)}
+                  className={`grid w-full gap-1 border-b px-4 py-3 text-left text-sm last:border-b-0 hover:bg-secondary ${active ? "bg-secondary" : ""}`}
+                >
+                  <span className="font-medium">{formatUsuarioName(usuario)}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {[usuario.rut ?? usuario.Rut, usuario.correoCorporativo ?? usuario.CorreoCorporativo, getCargo(usuario), getDimensionName(usuario)].filter(Boolean).join(" | ")}
+                  </span>
+                </button>
+              );
+            })}
+            {!usuarios.isLoading && !filteredUsuarios.length && <p className="p-4 text-sm text-muted-foreground">Sin resultados.</p>}
+          </div>
+          <Button type="button" variant="outline" onClick={clearForm}>Registrar nuevo usuario</Button>
+        </CardContent>
+      </Card>
+
+      <form
+        className="space-y-6"
+        onSubmit={(event) => {
+          event.preventDefault();
+          saveUsuario.mutate();
+        }}
+      >
+        <Section title={selectedId ? "Actualizar usuario" : "Registrar usuario"}>
+          <Field label="Rut" value={form.rut} onChange={(event) => setFormValue(setForm, "rut", event.target.value)} required />
+          <Field label="Nombre" value={form.nombreUsuario} onChange={(event) => setFormValue(setForm, "nombreUsuario", event.target.value)} required />
+          <Field label="Apellido paterno" value={form.apellidoPaterno} onChange={(event) => setFormValue(setForm, "apellidoPaterno", event.target.value)} required />
+          <Field label="Apellido materno" value={form.apellidoMaterno} onChange={(event) => setFormValue(setForm, "apellidoMaterno", event.target.value)} />
+          <Field label="Correo corporativo" type="email" value={form.correoCorporativo} onChange={(event) => setFormValue(setForm, "correoCorporativo", event.target.value)} required />
+          <Field label="Cargo" value={form.cargo} onChange={(event) => setFormValue(setForm, "cargo", event.target.value)} required />
+          <label className="space-y-2 text-sm font-medium md:col-span-2">
+            Dimension
+            <select
+              className="h-10 w-full rounded-2xl border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+              value={form.idDimension || ""}
+              onChange={(event) => setFormValue(setForm, "idDimension", Number(event.target.value))}
+              required
+            >
+              <option value="" disabled>Seleccionar dimension</option>
+              {(dimensiones.data ?? []).map((dimension) => {
+                const id = dimension.idDimension ?? dimension.IdDimension ?? 0;
+                return <option key={id} value={id}>{formatDimension(dimension)}</option>;
+              })}
+            </select>
+          </label>
+        </Section>
+
+        <Card className="border-blue-100 shadow-soft">
+          <CardHeader><CardTitle>Licencias</CardTitle></CardHeader>
+          <CardContent>
+            {licencias.isLoading && <p className="text-sm text-muted-foreground">Cargando licencias...</p>}
+            {licencias.error && <p className="text-sm text-destructive">No se pudo cargar licencias.</p>}
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {(licencias.data ?? []).map((licencia) => {
+                const id = getId(licencia, "idLicencia", "IdLicencia");
+                const checked = selectedLicencias.includes(id);
+                return (
+                  <button
+                    type="button"
+                    key={id}
+                    onClick={() => setSelectedLicencias((current) => checked ? current.filter((item) => item !== id) : [...current, id])}
+                    className={`rounded-2xl border p-4 text-left text-sm transition hover:border-[#0057B8] ${checked ? "border-[#0057B8] bg-[#F5F8FF] ring-2 ring-[#0057B8]/20" : "bg-background"}`}
+                  >
+                    <span className="block font-semibold">{getLicenciaName(licencia)}</span>
+                    <span className="mt-1 block text-xs text-muted-foreground">{checked ? "Seleccionada" : "Sin asignar"}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="flex justify-end gap-3">
+          <Button type="button" variant="outline" onClick={clearForm}>Limpiar</Button>
+          <Button disabled={saveUsuario.isPending || !form.idDimension}>
+            {saveUsuario.isPending ? "Guardando..." : selectedId ? "Actualizar usuario" : "Guardar usuario"}
+          </Button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+async function syncLicencias(idUsuario: number, selectedLicencias: number[], currentAssignments: Awaited<ReturnType<typeof licenciasService.listByUsuario>>) {
+  const current = currentAssignments.filter((item) => (item.idUsuario ?? item.IdUsuario) === idUsuario);
+  const currentIds = current.map((item) => item.idLicencia ?? item.IdLicencia ?? 0).filter(Boolean);
+  const toAdd = selectedLicencias.filter((id) => !currentIds.includes(id));
+  const toRemove = current.filter((item) => !selectedLicencias.includes(item.idLicencia ?? item.IdLicencia ?? 0));
+
+  await Promise.all([
+    ...toAdd.map((idLicencia) => licenciasService.assign(idUsuario, idLicencia)),
+    ...toRemove.map((item) => {
+      const idUsuarioLicencia = item.idUsuarioLicencia ?? item.IdUsuarioLicencia ?? 0;
+      return idUsuarioLicencia ? licenciasService.unassign(idUsuarioLicencia) : Promise.resolve(undefined);
+    }),
+  ]);
+}
+
+function getUsuarioLicenciaIds(usuario: UsuarioApi) {
+  const value = usuario.usuarioLicencias ?? usuario.UsuarioLicencias ?? [];
+  return value.map((item) => item.idLicencia ?? item.IdLicencia ?? 0).filter(Boolean);
+}
+
+function formatUsuarioName(usuario: UsuarioApi) {
+  return [
+    usuario.nombreUsuario ?? usuario.NombreUsuario,
+    usuario.apellidoPaterno ?? usuario.ApellidoPaterno,
+    usuario.apellidoMaterno ?? usuario.ApellidoMaterno,
+  ].filter(Boolean).join(" ") || "Usuario sin nombre";
+}
+
+function getDimensionName(usuario: UsuarioApi) {
+  return usuario.dimension?.nombreDimension ?? usuario.Dimension?.NombreDimension ?? usuario.Dimension?.nombreDimension ?? "";
+}
+
+function formatDimension(dimension: Dimension) {
+  return [
+    dimension.numeroDimension ?? dimension.NumeroDimension,
+    dimension.nombreDimension ?? dimension.NombreDimension,
+  ].filter(Boolean).join(" - ");
+}
+
+function getLicenciaName(licencia: LicenciaApi) {
+  return licencia.nombreLicencia ?? licencia.NombreLicencia ?? "Licencia";
+}
+
+function setFormValue<T extends Record<string, unknown>, K extends keyof T>(setForm: React.Dispatch<React.SetStateAction<T>>, key: K, value: T[K]) {
+  setForm((current) => ({ ...current, [key]: value }));
 }
 
 function unique(values: string[]) {
