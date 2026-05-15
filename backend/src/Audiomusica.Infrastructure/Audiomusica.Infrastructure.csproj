@@ -15,6 +15,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Persistence\AssetManagementDbContext.cs" />
+    <Compile Include="Migrations\*.cs" />
     <Compile Include="Services\*.cs" />
   </ItemGroup>
 </Project>

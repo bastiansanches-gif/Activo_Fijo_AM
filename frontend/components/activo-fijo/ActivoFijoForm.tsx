@@ -10,8 +10,10 @@ import { z } from "zod";
 import { SmartSelector, type SmartSelectorOption } from "@/components/selectors/SmartSelector";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { activoFijoService } from "@/services/activo-fijo-service";
+import { ApiError } from "@/services/apiClient";
 import { authService } from "@/services/auth-service";
 import { catalogosService, getId, getText } from "@/services/catalogos-service";
 import { dimensionesService, type Dimension } from "@/services/dimensionesService";
@@ -65,15 +67,17 @@ const storageAssets = new Set(["notebook", "aio", "servidor", "disco"]);
 const noUserAssets = new Set(["impresora"]);
 const minimalChipAssets = new Set(["chip"]);
 
-export function ActivoFijoForm() {
+export function ActivoFijoForm({ tipo }: { tipo?: string | null }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const session = authService.getSession();
-  const selectedSlug = searchParams.get("tipo");
+  const selectedSlug = tipo ?? searchParams.get("tipo");
   const selectedType = getAssetTypeName(selectedSlug);
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
+  const [successOpen, setSuccessOpen] = useState(false);
+  const [pendingActivo, setPendingActivo] = useState<{ values: FormData; idDiscoDuro: number | null } | null>(null);
 
   const marcas = useQuery({ queryKey: ["catalogos", "marcas"], queryFn: catalogosService.marcas.list });
   const modelos = useQuery({ queryKey: ["catalogos", "modelos"], queryFn: catalogosService.modelos.list });
@@ -184,11 +188,19 @@ export function ActivoFijoForm() {
 
   const createActivo = useMutation({
     mutationFn: activoFijoService.create,
-    onSuccess: () => {
-      setSuccess("Activo creado correctamente.");
-      router.push("/activo-fijo");
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["activos"] });
+      setSuccess("Activo fijo registrado correctamente.");
+      setError("");
+      setPendingActivo(null);
+      setSuccessOpen(true);
+      form.reset(getDefaultActivoValues(selectedType, selectedSlug));
+      window.setTimeout(() => router.push("/dashboard"), 900);
     },
-    onError: () => setError("No se pudo crear el activo. Revisa los datos e intenta nuevamente."),
+    onError: (mutationError) => {
+      setError(mapActivoError(mutationError));
+      setPendingActivo(null);
+    },
   });
 
   if (!selectedSlug || !assetTypes.some((item) => item.slug === selectedSlug)) {
@@ -210,22 +222,26 @@ export function ActivoFijoForm() {
       idDiscoDuro = await resolveDisco(values.tipoDisco ?? "SSD", values.capacidadDisco ?? "512GB");
     }
 
+    setPendingActivo({ values, idDiscoDuro });
+  }
+
+  async function confirmCreateActivo() {
+    if (!pendingActivo) return;
+    const { values, idDiscoDuro } = pendingActivo;
     await createActivo.mutateAsync({
-      IdDimension: values.idDimension,
-      IdUsuario: showUser ? values.idUsuario ?? null : null,
-      RAM: showTechnical ? values.ram ?? null : null,
-      IdMarca: values.idMarca ?? 1,
-      IdModelo: values.idModelo ?? 1,
-      IdProcesador: showTechnical ? values.idProcesador ?? null : null,
-      IdDiscoDuro: idDiscoDuro,
-      Serial: values.serial,
-      NumeroFactura: values.numeroFactura ?? "",
-      RutProveedor: values.rutProveedor ?? "",
-      FechaCompra: values.fechaCompra ? new Date(values.fechaCompra).toISOString() : new Date().toISOString(),
-      Detalles: values.detalles ?? null,
-      IdUsuarioRegistro: session?.idUsuario ?? null,
-      IdEstadoActivo: values.idEstadoActivo,
-      Activo: true,
+      idDimension: values.idDimension,
+      idUsuario: showUser ? values.idUsuario ?? null : null,
+      ram: showTechnical ? values.ram ?? null : null,
+      idMarca: values.idMarca ?? 1,
+      idModelo: values.idModelo ?? 1,
+      idProcesador: showTechnical ? values.idProcesador ?? null : null,
+      idDiscoDuro: idDiscoDuro,
+      serial: values.serial,
+      numeroFactura: values.numeroFactura ?? "",
+      rutProveedor: values.rutProveedor ?? "",
+      fechaCompra: values.fechaCompra ? new Date(values.fechaCompra).toISOString() : new Date().toISOString(),
+      detalles: values.detalles ?? null,
+      idEstadoActivo: values.idEstadoActivo,
     });
   }
 
@@ -298,7 +314,7 @@ export function ActivoFijoForm() {
             value={String(form.watch("idUsuario") ?? "")}
             onChange={(value) => form.setValue("idUsuario", value ? Number(value) : null)}
             allowAdd={false}
-            helperText="Busca por nombre, apellidos, RUT, correo o cargo."
+            helperText="Busca por nombre, apellidos, RUT, correo o rol."
           />
         )}
       </Section>
@@ -340,6 +356,58 @@ export function ActivoFijoForm() {
         <Button type="button" variant="outline" onClick={() => router.back()}>Cancelar</Button>
         <Button disabled={form.formState.isSubmitting || createActivo.isPending}>{form.formState.isSubmitting || createActivo.isPending ? "Guardando..." : "Guardar activo"}</Button>
       </div>
+
+      <Dialog open={!!pendingActivo} onOpenChange={(open) => !open && !createActivo.isPending && setPendingActivo(null)}>
+        <DialogContent className="max-h-[85vh] w-[calc(100vw-2rem)] max-w-2xl overflow-y-auto sm:w-1/2 sm:min-w-[32rem]">
+          <DialogHeader>
+            <DialogTitle>Confirmar registro</DialogTitle>
+          </DialogHeader>
+          {pendingActivo && (
+            <SummaryList
+              rows={[
+                ["Tipo de activo", pendingActivo.values.tipoActivo],
+                ["Dimension", getDimensionLabelById(normalizedDimensions, pendingActivo.values.idDimension)],
+                ["Usuario asignado", showUser && pendingActivo.values.idUsuario ? getUsuarioLabelById(usuarios.data ?? [], pendingActivo.values.idUsuario) : "Sin usuario asignado"],
+                ["Marca", showBrandModel ? pendingActivo.values.marca || getOptionLabel(marcaOptions, pendingActivo.values.idMarca) : pendingActivo.values.marca],
+                ["Modelo", showBrandModel ? pendingActivo.values.modelo || getOptionLabel(modeloOptions, pendingActivo.values.idModelo) : "No aplica"],
+                ["RAM", showTechnical && pendingActivo.values.ram ? `${pendingActivo.values.ram} GB` : "No aplica"],
+                ["Procesador", showTechnical ? pendingActivo.values.procesador || getOptionLabel(procesadorOptions, pendingActivo.values.idProcesador) : "No aplica"],
+                ["Disco", showStorage ? `${pendingActivo.values.tipoDisco ?? ""} ${pendingActivo.values.capacidadDisco ?? ""}`.trim() : "No aplica"],
+                ["Serial", pendingActivo.values.serial],
+                ["Numero factura", pendingActivo.values.numeroFactura || "Sin dato"],
+                ["RUT proveedor", pendingActivo.values.rutProveedor || "Sin dato"],
+                ["Fecha compra", pendingActivo.values.fechaCompra || "Sin dato"],
+                ["Estado", pendingActivo.values.estadoActivo || getOptionLabel(estadoOptions, pendingActivo.values.idEstadoActivo)],
+                ["Detalles", pendingActivo.values.detalles || "Sin detalles"],
+              ]}
+            />
+          )}
+          <div className="grid gap-3 sm:flex sm:justify-end">
+            <Button type="button" variant="outline" className="h-11" disabled={createActivo.isPending} onClick={() => setPendingActivo(null)}>Cancelar</Button>
+            <Button type="button" className="h-11" disabled={createActivo.isPending} onClick={confirmCreateActivo}>
+              {createActivo.isPending ? "Guardando..." : "Confirmar ingreso"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={successOpen} onOpenChange={(open) => {
+        setSuccessOpen(open);
+        if (!open) router.push("/dashboard");
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Registro completado</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">Activo fijo registrado correctamente.</p>
+          <div className="flex justify-end">
+            <Button type="button" onClick={() => {
+              setSuccessOpen(false);
+              router.push("/dashboard");
+            }}>Aceptar</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </form>
   );
 
@@ -380,6 +448,72 @@ function normalizeDimension(item: Dimension) {
   };
 }
 
+function getDefaultActivoValues(selectedType: string, selectedSlug: string | null): FormData {
+  return {
+    tipoActivo: selectedType,
+    tipoAsignacion: noUserAssets.has(selectedSlug ?? "") ? "Tienda" : "Usuario",
+    pais: "",
+    area: "",
+    idDimension: 0,
+    idUsuario: null,
+    ram: null,
+    idMarca: 1,
+    marca: "",
+    idModelo: 1,
+    modelo: "",
+    idProcesador: null,
+    procesador: "",
+    tipoDisco: selectedSlug === "chip" ? "" : "SSD",
+    capacidadDisco: selectedSlug === "chip" ? "" : "512GB",
+    idDiscoDuro: null,
+    serial: "",
+    numeroFactura: "",
+    rutProveedor: "",
+    fechaCompra: new Date().toISOString().slice(0, 10),
+    detalles: "",
+    idEstadoActivo: 1,
+    estadoActivo: "Disponible",
+  };
+}
+
+function mapActivoError(error: unknown) {
+  if (error instanceof ApiError && error.message.includes("Ya existe un activo fijo registrado con este serial")) {
+    return "El serial ingresado ya existe en el sistema.";
+  }
+  return "No se pudo crear el activo. Revisa los datos e intenta nuevamente.";
+}
+
+function mapUsuarioError(error: unknown) {
+  if (error instanceof ApiError && error.message.includes("Ya existe un usuario registrado con este RUT")) {
+    return "El RUT ingresado ya existe en el sistema.";
+  }
+  return "No se pudo guardar el usuario. Revisa los datos e intenta nuevamente.";
+}
+
+function getOptionLabel(options: SmartSelectorOption[], id?: number | null) {
+  return options.find((option) => Number(option.value) === id)?.label ?? "Sin dato";
+}
+
+function getDimensionLabelById(dimensions: ReturnType<typeof normalizeDimension>[], id: number) {
+  return dimensions.find((dimension) => dimension.idDimension === id)?.label ?? String(id);
+}
+
+function getUsuarioLabelById(users: UsuarioApi[], id: number) {
+  const usuario = users.find((item) => (item.idUsuario ?? item.IdUsuario) === id);
+  return usuario ? formatUsuarioName(usuario) : String(id);
+}
+
+function getDimensionLabelFromList(dimensions: Dimension[], id: number) {
+  const dimension = dimensions.find((item) => (item.idDimension ?? item.IdDimension) === id);
+  return dimension ? formatDimension(dimension) : String(id || "");
+}
+
+function getLicenciaNamesByIds(licencias: LicenciaApi[], ids: number[]) {
+  return licencias
+    .filter((licencia) => ids.includes(getId(licencia, "idCuenta", "IdCuenta")))
+    .map(getLicenciaName);
+}
+
 function inferDimension(nombre: string) {
   if (/peru|trebol/i.test(nombre)) return { pais: "Peru", area: "Retail" };
   if (/bodega|logistica/i.test(nombre)) return { pais: "Chile", area: "Logistica" };
@@ -403,9 +537,7 @@ function toUsuarioOption(user: UsuarioApi): SmartSelectorOption {
 }
 
 function getCargo(user: UsuarioApi) {
-  const cargo = user.cargo ?? user.Cargo;
-  if (typeof cargo === "string") return cargo || "Sin cargo";
-  return user.cargoNombre ?? user.CargoNombre ?? cargo?.nombreRol ?? cargo?.NombreRol ?? user.rol?.nombreRol ?? user.Rol?.NombreRol ?? "Sin cargo";
+  return user.rol?.nombreRol ?? user.Rol?.NombreRol ?? user.Rol?.nombreRol ?? "Sin rol";
 }
 
 function UsuarioAssetForm() {
@@ -419,16 +551,16 @@ function UsuarioAssetForm() {
     apellidoPaterno: "",
     apellidoMaterno: "",
     correoCorporativo: "",
-    cargo: "",
     idDimension: 0,
   });
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
+  const [successOpen, setSuccessOpen] = useState(false);
+  const [pendingUsuario, setPendingUsuario] = useState<{ payload: Partial<UsuarioApi>; licencias: number[]; isUpdate: boolean } | null>(null);
 
   const usuarios = useQuery({ queryKey: ["usuarios"], queryFn: usuariosService.list });
   const dimensiones = useQuery({ queryKey: ["dimensiones"], queryFn: dimensionesService.list });
   const licencias = useQuery({ queryKey: ["licencias"], queryFn: licenciasService.list });
-  const usuarioLicencias = useQuery({ queryKey: ["usuario-licencias"], queryFn: licenciasService.listByUsuario });
 
   const filteredUsuarios = useMemo(() => {
     const text = query.trim().toLowerCase();
@@ -450,35 +582,23 @@ function UsuarioAssetForm() {
   }, [query, usuarios.data]);
 
   const saveUsuario = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (pending: { payload: Partial<UsuarioApi>; licencias: number[]; isUpdate: boolean }) => {
       setError("");
-      const payload: Partial<UsuarioApi> = {
-        Rut: form.rut,
-        NombreUsuario: form.nombreUsuario,
-        ApellidoPaterno: form.apellidoPaterno,
-        ApellidoMaterno: form.apellidoMaterno || null,
-        CorreoCorporativo: form.correoCorporativo,
-        Cargo: form.cargo,
-        FechaIngreso: new Date().toISOString(),
-        IdRol: 2,
-        IdDimension: form.idDimension,
-        Activo: true,
-      };
-      const saved = selectedId ? await usuariosService.update(selectedId, payload) : await usuariosService.create(payload);
-      const idUsuario = saved.idUsuario ?? saved.IdUsuario ?? selectedId;
-      if (!idUsuario) return saved;
-      await syncLicencias(idUsuario, selectedLicencias, usuarioLicencias.data ?? []);
+      const saved = pending.isUpdate && selectedId ? await usuariosService.update(selectedId, pending.payload) : await usuariosService.create(pending.payload);
       return saved;
     },
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["usuarios"] }),
-        queryClient.invalidateQueries({ queryKey: ["usuario-licencias"] }),
       ]);
       setSuccess(selectedId ? "Usuario actualizado correctamente." : "Usuario registrado correctamente.");
+      resetUsuarioForm();
+      setPendingUsuario(null);
+      setSuccessOpen(true);
     },
-    onError: () => {
-      setError("No se pudo guardar el usuario. Revisa los datos e intenta nuevamente.");
+    onError: (mutationError) => {
+      setError(mapUsuarioError(mutationError));
+      setPendingUsuario(null);
     },
   });
 
@@ -493,26 +613,55 @@ function UsuarioAssetForm() {
       apellidoPaterno: usuario.apellidoPaterno ?? usuario.ApellidoPaterno ?? "",
       apellidoMaterno: usuario.apellidoMaterno ?? usuario.ApellidoMaterno ?? "",
       correoCorporativo: usuario.correoCorporativo ?? usuario.CorreoCorporativo ?? "",
-      cargo: getCargo(usuario),
       idDimension: usuario.idDimension ?? usuario.IdDimension ?? 0,
     });
     setSelectedLicencias(getUsuarioLicenciaIds(usuario));
   }
 
   function clearForm() {
-    setSelectedId(null);
-    setSelectedLicencias([]);
     setSuccess("");
     setError("");
+    resetUsuarioForm();
+  }
+
+  function resetUsuarioForm() {
+    setSelectedId(null);
+    setSelectedLicencias([]);
+    setQuery("");
     setForm({
       rut: "",
       nombreUsuario: "",
       apellidoPaterno: "",
       apellidoMaterno: "",
       correoCorporativo: "",
-      cargo: "",
       idDimension: 0,
     });
+  }
+
+  function prepareUsuarioSubmit() {
+    setError("");
+    setSuccess("");
+    setPendingUsuario({
+      isUpdate: !!selectedId,
+      licencias: selectedLicencias,
+      payload: {
+        Rut: form.rut,
+        NombreUsuario: form.nombreUsuario,
+        ApellidoPaterno: form.apellidoPaterno,
+        ApellidoMaterno: form.apellidoMaterno || null,
+        CorreoCorporativo: form.correoCorporativo,
+        FechaIngreso: new Date().toISOString(),
+        FinContrato: null,
+        IdRol: 2,
+        IdDimension: form.idDimension,
+        Activo: true,
+        IdCuentas: selectedLicencias,
+      },
+    });
+  }
+
+  function confirmSaveUsuario() {
+    if (pendingUsuario) saveUsuario.mutate(pendingUsuario);
   }
 
   return (
@@ -569,7 +718,7 @@ function UsuarioAssetForm() {
         className="space-y-6"
         onSubmit={(event) => {
           event.preventDefault();
-          saveUsuario.mutate();
+          prepareUsuarioSubmit();
         }}
       >
         <Section title={selectedId ? "Actualizar usuario" : "Registrar usuario"}>
@@ -578,7 +727,6 @@ function UsuarioAssetForm() {
           <Field label="Apellido paterno" value={form.apellidoPaterno} onChange={(event) => setFormValue(setForm, "apellidoPaterno", event.target.value)} required />
           <Field label="Apellido materno" value={form.apellidoMaterno} onChange={(event) => setFormValue(setForm, "apellidoMaterno", event.target.value)} />
           <Field label="Correo corporativo" type="email" value={form.correoCorporativo} onChange={(event) => setFormValue(setForm, "correoCorporativo", event.target.value)} required />
-          <Field label="Cargo" value={form.cargo} onChange={(event) => setFormValue(setForm, "cargo", event.target.value)} required />
           <label className="space-y-2 text-sm font-medium md:col-span-2">
             Dimension
             <select
@@ -603,7 +751,7 @@ function UsuarioAssetForm() {
             {licencias.error && <p className="text-sm text-destructive">No se pudo cargar licencias.</p>}
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {(licencias.data ?? []).map((licencia) => {
-                const id = getId(licencia, "idLicencia", "IdLicencia");
+                const id = getId(licencia, "idCuenta", "IdCuenta");
                 const checked = selectedLicencias.includes(id);
                 return (
                   <button
@@ -628,28 +776,51 @@ function UsuarioAssetForm() {
           </Button>
         </div>
       </form>
+
+      <Dialog open={!!pendingUsuario} onOpenChange={(open) => !open && !saveUsuario.isPending && setPendingUsuario(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Confirmar registro</DialogTitle>
+          </DialogHeader>
+          <SummaryList
+            rows={[
+              ["RUT", form.rut],
+              ["Nombre completo", [form.nombreUsuario, form.apellidoPaterno, form.apellidoMaterno].filter(Boolean).join(" ")],
+              ["Correo", form.correoCorporativo],
+              ["Cargo", "Usuario"],
+              ["Dimension", getDimensionLabelFromList(dimensiones.data ?? [], form.idDimension)],
+              ["Fecha ingreso", new Date().toISOString().slice(0, 10)],
+              ["Fecha termino contrato", "Sin termino"],
+              ["Licencias seleccionadas", getLicenciaNamesByIds(licencias.data ?? [], selectedLicencias).join(", ") || "Sin licencias"],
+            ]}
+          />
+          <div className="flex justify-end gap-3">
+            <Button type="button" variant="outline" disabled={saveUsuario.isPending} onClick={() => setPendingUsuario(null)}>Cancelar</Button>
+            <Button type="button" disabled={saveUsuario.isPending} onClick={confirmSaveUsuario}>
+              {saveUsuario.isPending ? "Guardando..." : "Confirmar registro"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={successOpen} onOpenChange={setSuccessOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Registro completado</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">Usuario registrado correctamente.</p>
+          <div className="flex justify-end">
+            <Button type="button" onClick={() => setSuccessOpen(false)}>Aceptar</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-async function syncLicencias(idUsuario: number, selectedLicencias: number[], currentAssignments: Awaited<ReturnType<typeof licenciasService.listByUsuario>>) {
-  const current = currentAssignments.filter((item) => (item.idUsuario ?? item.IdUsuario) === idUsuario);
-  const currentIds = current.map((item) => item.idLicencia ?? item.IdLicencia ?? 0).filter(Boolean);
-  const toAdd = selectedLicencias.filter((id) => !currentIds.includes(id));
-  const toRemove = current.filter((item) => !selectedLicencias.includes(item.idLicencia ?? item.IdLicencia ?? 0));
-
-  await Promise.all([
-    ...toAdd.map((idLicencia) => licenciasService.assign(idUsuario, idLicencia)),
-    ...toRemove.map((item) => {
-      const idUsuarioLicencia = item.idUsuarioLicencia ?? item.IdUsuarioLicencia ?? 0;
-      return idUsuarioLicencia ? licenciasService.unassign(idUsuarioLicencia) : Promise.resolve(undefined);
-    }),
-  ]);
-}
-
 function getUsuarioLicenciaIds(usuario: UsuarioApi) {
-  const value = usuario.usuarioLicencias ?? usuario.UsuarioLicencias ?? [];
-  return value.map((item) => item.idLicencia ?? item.IdLicencia ?? 0).filter(Boolean);
+  const value = usuario.cuentas ?? usuario.Cuentas ?? [];
+  return value.map((item) => item.idCuenta ?? item.IdCuenta ?? 0).filter(Boolean);
 }
 
 function formatUsuarioName(usuario: UsuarioApi) {
@@ -672,7 +843,7 @@ function formatDimension(dimension: Dimension) {
 }
 
 function getLicenciaName(licencia: LicenciaApi) {
-  return licencia.nombreLicencia ?? licencia.NombreLicencia ?? "Licencia";
+  return licencia.nombreCuenta ?? licencia.NombreCuenta ?? "Cuenta";
 }
 
 function setFormValue<T extends Record<string, unknown>, K extends keyof T>(setForm: React.Dispatch<React.SetStateAction<T>>, key: K, value: T[K]) {
@@ -730,6 +901,19 @@ function SelectField({ label, value, onChange, options, helperText }: { label: s
       </select>
       {helperText && <p className="text-xs text-muted-foreground">{helperText}</p>}
     </label>
+  );
+}
+
+function SummaryList({ rows }: { rows: Array<[string, string | number | null | undefined]> }) {
+  return (
+    <dl className="grid gap-3 rounded-2xl border bg-secondary/30 p-4 text-sm sm:grid-cols-2">
+      {rows.map(([label, value]) => (
+        <div key={label} className="space-y-1">
+          <dt className="text-xs font-medium uppercase tracking-normal text-muted-foreground">{label}</dt>
+          <dd className="break-words font-medium text-foreground">{value || "Sin dato"}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }
 

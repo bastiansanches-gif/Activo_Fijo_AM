@@ -30,12 +30,8 @@ type ApiActivoFijo = {
   Detalles?: string | null;
   esAF?: boolean;
   EsAF?: boolean;
-  idUsuarioRegistro?: number | null;
-  IdUsuarioRegistro?: number | null;
   idEstadoActivo?: number;
   IdEstadoActivo?: number;
-  activo?: boolean;
-  Activo?: boolean;
   marca?: { nombreMarca?: string; NombreMarca?: string } | null;
   Marca?: { nombreMarca?: string; NombreMarca?: string } | null;
   modelo?: { nombreModelo?: string; NombreModelo?: string } | null;
@@ -75,9 +71,7 @@ function mapActivo(api: ApiActivoFijo): ActivoFijo {
     fechaCompra: api.fechaCompra ?? api.FechaCompra ?? "",
     detalles: api.detalles ?? api.Detalles ?? null,
     esAF: api.esAF ?? api.EsAF ?? true,
-    idUsuarioRegistro: api.idUsuarioRegistro ?? api.IdUsuarioRegistro ?? null,
     idEstadoActivo,
-    activo: api.activo ?? api.Activo ?? true,
     marca: api.marca?.nombreMarca ?? api.Marca?.NombreMarca ?? api.Marca?.nombreMarca,
     modelo: api.modelo?.nombreModelo ?? api.Modelo?.NombreModelo ?? api.Modelo?.nombreModelo,
     procesador: api.procesador?.nombreProcesador ?? api.Procesador?.NombreProcesador ?? api.Procesador?.nombreProcesador,

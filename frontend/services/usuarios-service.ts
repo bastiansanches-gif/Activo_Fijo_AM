@@ -13,32 +13,24 @@ export type UsuarioApi = {
   ApellidoMaterno?: string | null;
   correoCorporativo?: string;
   CorreoCorporativo?: string;
-  cargoTexto?: string;
-  Cargo?: string | { nombreRol?: string; NombreRol?: string } | null;
-  cargo?: string | { nombreRol?: string; NombreRol?: string } | null;
-  CargoNombre?: string;
-  cargoNombre?: string;
   fechaIngreso: string;
   FechaIngreso?: string;
-  idCargo?: number;
-  IdCargo?: number;
   finContrato?: string | null;
+  FinContrato?: string | null;
   idRol: number;
   IdRol?: number;
   idDimension: number;
   IdDimension?: number;
   activo: boolean;
   Activo?: boolean;
-  idCuenta?: number | null;
-  IdCuenta?: number | null;
-  cuenta?: { nombreCuenta?: string; NombreCuenta?: string } | null;
-  Cuenta?: { nombreCuenta?: string; NombreCuenta?: string } | null;
+  idCuentas?: number[];
+  IdCuentas?: number[];
+  cuentas?: Array<{ idCuenta?: number; IdCuenta?: number; nombreCuenta?: string; NombreCuenta?: string }>;
+  Cuentas?: Array<{ idCuenta?: number; IdCuenta?: number; nombreCuenta?: string; NombreCuenta?: string }>;
   rol?: { nombreRol?: string; NombreRol?: string } | null;
   Rol?: { nombreRol?: string; NombreRol?: string } | null;
   dimension?: { numeroDimension?: string; NumeroDimension?: string; nombreDimension?: string; NombreDimension?: string } | null;
   Dimension?: { numeroDimension?: string; NumeroDimension?: string; nombreDimension?: string; NombreDimension?: string } | null;
-  usuarioLicencias?: Array<{ idLicencia?: number; IdLicencia?: number; licencia?: { nombreLicencia?: string; NombreLicencia?: string } | null; Licencia?: { nombreLicencia?: string; NombreLicencia?: string } | null }>;
-  UsuarioLicencias?: Array<{ idLicencia?: number; IdLicencia?: number; licencia?: { nombreLicencia?: string; NombreLicencia?: string } | null; Licencia?: { nombreLicencia?: string; NombreLicencia?: string } | null }>;
 };
 
 export const usuariosService = {

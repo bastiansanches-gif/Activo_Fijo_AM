@@ -20,28 +20,37 @@ export default function DashboardPage() {
           <h2 className="text-3xl font-semibold tracking-normal">Dashboard</h2>
           <p className="text-muted-foreground">Vista ejecutiva de activos fijos TI.</p>
         </div>
+        <Link
+          href="/activo-fijo/nuevo"
+          className="flex min-h-20 items-center justify-between gap-4 rounded-2xl border border-blue-100 bg-[#0057B8] p-5 text-white shadow-soft transition hover:bg-[#004A9E]"
+        >
+          <span>
+            <span className="block text-lg font-semibold">Agregar activo fijo</span>
+            <span className="mt-1 block text-sm text-white/80">Selecciona el tipo de activo y completa el ingreso.</span>
+          </span>
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/15">
+            <Plus className="h-5 w-5" />
+          </span>
+        </Link>
         {isLoading && <p className="text-sm text-muted-foreground">Cargando resumen real...</p>}
         {error && <p className="text-sm text-destructive">No se pudo conectar con el resumen del backend.</p>}
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <StatsCard title="Total activos" value={data?.activosTotales ?? 0} detail="Inventario TI registrado" icon={Boxes} />
-          <StatsCard title="Disponibles" value={data?.activosDisponibles ?? 0} detail="Listos para asignacion" icon={ClipboardCheck} />
-          <StatsCard title="Usuarios activos" value={data?.usuariosActivos ?? 0} detail="Colaboradores vigentes" icon={Store} />
-          <StatsCard title="Herramientas" value={data?.herramientasActivas ?? 0} detail="Inventario operacional" icon={AlertTriangle} />
+          <StatsCard title="Total activos" value={data?.activosTotales ?? 0} detail="Inventario TI registrado" icon={Boxes} className="border-blue-100 bg-[#D9ECFF] text-[#003B7A]" iconClassName="text-[#0057B8]" />
+          <StatsCard title="Disponibles" value={data?.activosDisponibles ?? 0} detail="Listos para asignacion" icon={ClipboardCheck} className="border-emerald-100 bg-[#DDF8E8] text-[#14532D]" iconClassName="text-[#157347]" />
+          <StatsCard title="Usuarios activos" value={data?.usuariosActivos ?? 0} detail="Colaboradores vigentes" icon={Store} className="border-violet-100 bg-[#ECE2FF] text-[#44228A]" iconClassName="text-[#6D3FD1]" />
+          <StatsCard title="Herramientas" value={data?.herramientasActivas ?? 0} detail="Inventario operacional" icon={AlertTriangle} className="border-amber-100 bg-[#FFF4C7] text-[#6F4D00]" iconClassName="text-[#9A6A00]" />
         </section>
-        <section className="grid gap-3 md:grid-cols-5">
-          <Button asChild className="h-12 justify-start">
-            <Link href="/activo-fijo/nuevo"><Plus className="h-4 w-4" /> Agregar activo fijo</Link>
-          </Button>
-          <Button asChild variant="outline" className="h-12 justify-start">
+        <section className="grid gap-3 md:grid-cols-4">
+          <Button asChild variant="outline" className="h-12 justify-center">
             <Link href="/activo-fijo"><Boxes className="h-4 w-4" /> Ver activos</Link>
           </Button>
-          <Button asChild variant="outline" className="h-12 justify-start">
+          <Button asChild variant="outline" className="h-12 justify-center">
             <Link href="/herramientas"><Hammer className="h-4 w-4" /> Ver herramientas</Link>
           </Button>
-          <Button asChild variant="outline" className="h-12 justify-start">
+          <Button asChild variant="outline" className="h-12 justify-center">
             <Link href="/usuarios"><Users className="h-4 w-4" /> Ver usuarios</Link>
           </Button>
-          <Button asChild variant="outline" className="h-12 justify-start">
+          <Button asChild variant="outline" className="h-12 justify-center">
             <Link href="/checklist"><Download className="h-4 w-4" /> Descargar checklist</Link>
           </Button>
         </section>

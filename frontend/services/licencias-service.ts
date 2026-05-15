@@ -1,28 +1,28 @@
 import { apiClient } from "./apiClient";
 
 export type LicenciaApi = {
-  idLicencia?: number;
-  IdLicencia?: number;
-  nombreLicencia?: string;
-  NombreLicencia?: string;
+  idCuenta?: number;
+  IdCuenta?: number;
+  nombreCuenta?: string;
+  NombreCuenta?: string;
 };
 
 export type UsuarioLicenciaApi = {
-  idUsuarioLicencia?: number;
-  IdUsuarioLicencia?: number;
+  idUsuarioCuenta?: number;
+  IdUsuarioCuenta?: number;
   idUsuario?: number;
   IdUsuario?: number;
-  idLicencia?: number;
-  IdLicencia?: number;
+  idCuenta?: number;
+  IdCuenta?: number;
 };
 
 export const licenciasService = {
-  list: () => apiClient<LicenciaApi[]>("/licencias"),
-  listByUsuario: () => apiClient<UsuarioLicenciaApi[]>("/usuario-licencias"),
-  assign: (idUsuario: number, idLicencia: number) =>
-    apiClient<UsuarioLicenciaApi>("/usuario-licencias", {
+  list: () => apiClient<LicenciaApi[]>("/cuentas"),
+  listByUsuario: () => apiClient<UsuarioLicenciaApi[]>("/usuario-cuentas"),
+  assign: (idUsuario: number, idCuenta: number) =>
+    apiClient<UsuarioLicenciaApi>("/usuario-cuentas", {
       method: "POST",
-      body: JSON.stringify({ IdUsuario: idUsuario, IdLicencia: idLicencia }),
+      body: JSON.stringify({ IdUsuario: idUsuario, IdCuenta: idCuenta }),
     }),
-  unassign: (idUsuarioLicencia: number) => apiClient<void>(`/usuario-licencias/${idUsuarioLicencia}`, { method: "DELETE" }),
+  unassign: (idUsuarioCuenta: number) => apiClient<void>(`/usuario-cuentas/${idUsuarioCuenta}`, { method: "DELETE" }),
 };

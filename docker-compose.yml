@@ -1,0 +1,46 @@
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: audiomusica-sqlserver
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:-Amsa2026Docker!}"
+      MSSQL_PID: Developer
+    ports:
+      - "${SQLSERVER_PORT:-11433}:1433"
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: audiomusica-backend
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: "http://+:8080"
+      Database__ApplyMigrations: "true"
+      ConnectionStrings__DefaultConnection: "Server=sqlserver,1433;Database=AudiomusicaAssetManagementDb;User Id=sa;Password=${MSSQL_SA_PASSWORD:-Amsa2026Docker!};TrustServerCertificate=True;Encrypt=False;"
+      Cors__AllowedOrigins__0: "http://localhost:3000"
+    ports:
+      - "${BACKEND_PORT:-5077}:8080"
+    depends_on:
+      - sqlserver
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: "http://localhost:${BACKEND_PORT:-5077}/api"
+    container_name: audiomusica-frontend
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      - backend
+
+volumes:
+  sqlserver_data:

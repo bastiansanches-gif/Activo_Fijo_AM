@@ -23,6 +23,12 @@ public class SapSyncBackgroundService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // Este BackgroundService es el lugar pensado para ejecutar la sincronizacion
+        // automatica contra SAP. Antes de habilitarlo en Program.cs, revisar que:
+        // - Sap:ConnectionString exista y apunte al ambiente correcto.
+        // - El servidor tenga instalado/configurado el SAP HANA Client.
+        // - Las consultas usadas por SapHanaService sean de solo lectura o esten
+        //   alineadas con el proceso SAP aprobado.
         while (!stoppingToken.IsCancellationRequested)
         {
             await sapHanaService.SynchronizeAssetsAsync(stoppingToken);

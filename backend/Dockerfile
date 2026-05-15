@@ -1,21 +1,25 @@
-FROM node:22-alpine AS deps
-WORKDIR /app
-COPY package*.json ./
-RUN npm install
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS restore
+WORKDIR /src
 
-FROM node:22-alpine AS build
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
+COPY NuGet.config ./
+COPY Audiomusica.AssetManagement.sln ./
+COPY src/Audiomusica.Domain/Audiomusica.Domain.csproj src/Audiomusica.Domain/
+COPY src/Audiomusica.Application/Audiomusica.Application.csproj src/Audiomusica.Application/
+COPY src/Audiomusica.Infrastructure/Audiomusica.Infrastructure.csproj src/Audiomusica.Infrastructure/
+COPY src/Audiomusica.WebApi/Audiomusica.WebApi.csproj src/Audiomusica.WebApi/
+RUN dotnet restore Audiomusica.AssetManagement.sln
+
+FROM restore AS build
 COPY . .
-RUN npx prisma generate
-RUN npm run build
+RUN dotnet publish src/Audiomusica.WebApi/Audiomusica.WebApi.csproj \
+    --configuration Release \
+    --no-restore \
+    --output /app/publish
 
-FROM node:22-alpine AS runner
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
 WORKDIR /app
-ENV NODE_ENV=production
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/dist ./dist
-COPY --from=build /app/prisma ./prisma
-COPY package*.json ./
-EXPOSE 3001
-CMD ["node", "dist/src/server.js"]
+ENV ASPNETCORE_URLS=http://+:8080
+ENV ASPNETCORE_ENVIRONMENT=Production
+COPY --from=build /app/publish .
+EXPOSE 8080
+ENTRYPOINT ["dotnet", "Audiomusica.WebApi.dll"]

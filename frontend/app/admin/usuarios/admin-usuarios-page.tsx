@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { KeyRound, Plus, Search, ShieldCheck, UserCog } from "lucide-react";
+import { Copy, KeyRound, Pencil, Plus, Search, ShieldCheck, UserCog } from "lucide-react";
 import { FormEvent, useMemo, useState } from "react";
 import { RoleGuard } from "@/components/layout/RoleGuard";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { authService } from "@/services/auth-service";
-import { apiClient } from "@/services/apiClient";
+import { ApiError, apiClient } from "@/services/apiClient";
 import { dimensionesService } from "@/services/dimensionesService";
 import { getId, getText } from "@/services/catalogos-service";
 import { licenciasService } from "@/services/licencias-service";
@@ -24,26 +24,49 @@ export default function AdminUsuariosPage() {
   const [estado, setEstado] = useState("Todos");
   const [dimension, setDimension] = useState("Todos");
   const [openCreate, setOpenCreate] = useState(false);
+  const [editingUser, setEditingUser] = useState<UsuarioApi | null>(null);
+  const [passwordUser, setPasswordUser] = useState<UsuarioApi | null>(null);
+  const [generatedPassword, setGeneratedPassword] = useState("");
+  const [createError, setCreateError] = useState("");
+  const [editError, setEditError] = useState("");
+  const [successOpen, setSuccessOpen] = useState(false);
+  const [editSuccessOpen, setEditSuccessOpen] = useState(false);
+  const [formKey, setFormKey] = useState(0);
   const session = authService.getSession();
   const canCreateUser = session?.tipoUsuario === "ADMIN";
   const queryClient = useQueryClient();
   const usuarios = useQuery({ queryKey: ["usuarios"], queryFn: usuariosService.list });
   const roles = useQuery({ queryKey: ["roles"], queryFn: () => apiClient<RolApi[]>("/roles"), enabled: canCreateUser });
   const dimensionesDisponibles = useQuery({ queryKey: ["dimensiones"], queryFn: dimensionesService.list, enabled: canCreateUser });
-  const licencias = useQuery({ queryKey: ["licencias"], queryFn: licenciasService.list, enabled: canCreateUser });
+  const licencias = useQuery({ queryKey: ["cuentas"], queryFn: licenciasService.list, enabled: canCreateUser });
 
   const createUser = useMutation({
     mutationFn: async (payload: { user: Partial<UsuarioApi>; licencias: number[] }) => {
-      const created = await usuariosService.create(payload.user);
-      const idUsuario = created.idUsuario ?? created.IdUsuario;
-      if (idUsuario) {
-        await Promise.all(payload.licencias.map((idLicencia) => licenciasService.assign(idUsuario, idLicencia)));
-      }
-      return created;
+      return await usuariosService.create({ ...payload.user, IdCuentas: payload.licencias });
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["usuarios"] });
+      setCreateError("");
+      setFormKey((current) => current + 1);
       setOpenCreate(false);
+      setSuccessOpen(true);
+    },
+    onError: (error) => {
+      setCreateError(mapUsuarioError(error));
+    },
+  });
+  const updateUser = useMutation({
+    mutationFn: async (payload: { id: number; user: Partial<UsuarioApi>; licencias: number[] }) => {
+      return await usuariosService.update(payload.id, { ...payload.user, IdCuentas: payload.licencias });
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["usuarios"] });
+      setEditError("");
+      setEditingUser(null);
+      setEditSuccessOpen(true);
+    },
+    onError: (error) => {
+      setEditError(mapUsuarioError(error));
     },
   });
 
@@ -108,7 +131,7 @@ export default function AdminUsuariosPage() {
             <div className="mb-4 grid gap-3 md:grid-cols-[1fr_180px_220px]">
               <div className="relative">
                 <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input className="pl-9" placeholder="Buscar por rut, nombre, apellidos, correo, cargo o dimension" value={query} onChange={(event) => setQuery(event.target.value)} />
+                <Input className="pl-9" placeholder="Buscar por rut, nombre, apellidos, correo, rol o dimension" value={query} onChange={(event) => setQuery(event.target.value)} />
               </div>
               <select className="h-10 rounded-2xl border bg-background px-3 text-sm" value={estado} onChange={(event) => setEstado(event.target.value)}>
                 {["Todos", "Activo", "Inactivo"].map((item) => <option key={item}>{item}</option>)}
@@ -124,7 +147,7 @@ export default function AdminUsuariosPage() {
                     <TableHead>Nombre completo</TableHead>
                     <TableHead>Rut</TableHead>
                     <TableHead>Correo</TableHead>
-                    <TableHead>Cargo</TableHead>
+                    <TableHead>Rol</TableHead>
                     <TableHead>Dimension</TableHead>
                     <TableHead>Licencias asociadas</TableHead>
                     <TableHead>Estado</TableHead>
@@ -149,8 +172,24 @@ export default function AdminUsuariosPage() {
                         <TableCell>
                           {canCreateUser ? (
                             <div className="flex gap-2">
-                              <Button variant="outline" size="sm">Editar acceso</Button>
-                              <Button variant="ghost" size="icon" aria-label="Resetear contrasena"><KeyRound className="h-4 w-4" /></Button>
+                              <Button variant="outline" size="sm" onClick={() => {
+                                setEditError("");
+                                setEditingUser(usuario);
+                              }}>
+                                <Pencil className="h-4 w-4" />
+                                Editar acceso
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                aria-label="Generar contrasena"
+                                onClick={() => {
+                                  setPasswordUser(usuario);
+                                  setGeneratedPassword(generateTemporaryPassword());
+                                }}
+                              >
+                                <KeyRound className="h-4 w-4" />
+                              </Button>
                             </div>
                           ) : (
                             <Badge variant="secondary">Solo lectura</Badge>
@@ -164,18 +203,110 @@ export default function AdminUsuariosPage() {
             </div>
           </CardContent>
         </Card>
-        <Dialog open={openCreate} onOpenChange={setOpenCreate}>
+        <Dialog open={openCreate} onOpenChange={(open) => {
+          setOpenCreate(open);
+          if (open) setCreateError("");
+        }}>
           <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Crear usuario</DialogTitle>
             </DialogHeader>
             <CreateUserForm
+              key={formKey}
               roles={roles.data ?? []}
               dimensiones={dimensionesDisponibles.data ?? []}
               licencias={licencias.data ?? []}
               isSaving={createUser.isPending}
+              errorMessage={createError}
               onSubmit={(user, selectedLicencias) => createUser.mutate({ user, licencias: selectedLicencias })}
             />
+          </DialogContent>
+        </Dialog>
+        <Dialog open={successOpen} onOpenChange={setSuccessOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Registro completado</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">Usuario registrado correctamente.</p>
+            <div className="flex justify-end">
+              <Button type="button" onClick={() => setSuccessOpen(false)}>Aceptar</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+        <Dialog open={!!editingUser} onOpenChange={(open) => {
+          if (!open && !updateUser.isPending) {
+            setEditingUser(null);
+            setEditError("");
+          }
+        }}>
+          <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Editar acceso</DialogTitle>
+            </DialogHeader>
+            {editingUser && (
+              <UserAccessForm
+                mode="edit"
+                initialUser={editingUser}
+                roles={roles.data ?? []}
+                dimensiones={dimensionesDisponibles.data ?? []}
+                licencias={licencias.data ?? []}
+                isSaving={updateUser.isPending}
+                errorMessage={editError}
+                submitLabel="Guardar cambios"
+                confirmLabel="Confirmar cambios"
+                onSubmit={(user, selectedLicencias) => {
+                  const id = editingUser.idUsuario ?? editingUser.IdUsuario;
+                  if (!id) return;
+                  updateUser.mutate({ id, user, licencias: selectedLicencias });
+                }}
+              />
+            )}
+          </DialogContent>
+        </Dialog>
+        <Dialog open={editSuccessOpen} onOpenChange={setEditSuccessOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Acceso actualizado</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">Los datos del usuario fueron actualizados correctamente.</p>
+            <div className="flex justify-end">
+              <Button type="button" onClick={() => setEditSuccessOpen(false)}>Aceptar</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+        <Dialog open={!!passwordUser} onOpenChange={(open) => {
+          if (!open) {
+            setPasswordUser(null);
+            setGeneratedPassword("");
+          }
+        }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Contrasena temporal</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Clave generada para {passwordUser ? getFullName(passwordUser) : "usuario"}. El backend actual no persiste contrasenas; usala como clave temporal hasta conectar el endpoint de seguridad.
+              </p>
+              <div className="rounded-2xl border bg-secondary/40 p-4 font-mono text-lg font-semibold tracking-normal">
+                {generatedPassword}
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setGeneratedPassword(generateTemporaryPassword())}>
+                  <KeyRound className="h-4 w-4" />
+                  Generar otra
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    void navigator.clipboard?.writeText(generatedPassword);
+                  }}
+                >
+                  <Copy className="h-4 w-4" />
+                  Copiar
+                </Button>
+              </div>
+            </div>
           </DialogContent>
         </Dialog>
       </div>
@@ -183,10 +314,21 @@ export default function AdminUsuariosPage() {
   );
 }
 
+function generateTemporaryPassword() {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+  const symbols = "!#$%";
+  const bytes = new Uint32Array(12);
+  crypto.getRandomValues(bytes);
+  const core = Array.from(bytes, (value) => alphabet[value % alphabet.length]).join("");
+  return `${core.slice(0, 4)}-${core.slice(4, 8)}-${core.slice(8)}${symbols[bytes[0] % symbols.length]}`;
+}
+
+function getFullName(usuario: UsuarioApi) {
+  return `${usuario.nombreUsuario ?? usuario.NombreUsuario ?? ""} ${usuario.apellidoPaterno ?? usuario.ApellidoPaterno ?? ""} ${usuario.apellidoMaterno ?? usuario.ApellidoMaterno ?? ""}`.trim();
+}
+
 function getCargo(usuario: UsuarioApi) {
-  const cargo = usuario.cargo ?? usuario.Cargo;
-  if (typeof cargo === "string") return cargo || "Sin cargo";
-  return usuario.cargoNombre ?? usuario.CargoNombre ?? cargo?.nombreRol ?? cargo?.NombreRol ?? usuario.rol?.nombreRol ?? usuario.Rol?.NombreRol ?? "Sin cargo";
+  return usuario.rol?.nombreRol ?? usuario.Rol?.NombreRol ?? usuario.Rol?.nombreRol ?? "Sin rol";
 }
 
 function getDimension(usuario: UsuarioApi) {
@@ -194,95 +336,205 @@ function getDimension(usuario: UsuarioApi) {
 }
 
 function getLicencias(usuario: UsuarioApi) {
-  const value = usuario.usuarioLicencias ?? usuario.UsuarioLicencias;
+  const value = usuario.cuentas ?? usuario.Cuentas;
   if (!Array.isArray(value) || !value.length) return "Sin licencias";
   return value
-    .map((item) => item.licencia?.nombreLicencia ?? item.Licencia?.NombreLicencia ?? item.Licencia?.nombreLicencia ?? item.idLicencia ?? item.IdLicencia)
+    .map((item) => item.nombreCuenta ?? item.NombreCuenta ?? item.idCuenta ?? item.IdCuenta)
     .filter(Boolean)
     .join(", ");
 }
 
-function CreateUserForm({
+function mapUsuarioError(error: unknown) {
+  if (error instanceof ApiError && error.message.includes("Ya existe un usuario registrado con este RUT")) {
+    return "El RUT ingresado ya existe en el sistema.";
+  }
+  return "No se pudo guardar el usuario. Revisa los datos e intenta nuevamente.";
+}
+
+function getRoleNameById(roles: RolApi[], id: number) {
+  return roles.find((rol) => getId(rol, "idRol", "IdRol") === id)?.nombreRol
+    ?? roles.find((rol) => getId(rol, "idRol", "IdRol") === id)?.NombreRol
+    ?? String(id || "");
+}
+
+function getDimensionNameById(
+  dimensiones: Array<{ idDimension?: number; IdDimension?: number; numeroDimension?: string; NumeroDimension?: string; nombreDimension?: string; NombreDimension?: string }>,
+  id: number,
+) {
+  const dimension = dimensiones.find((item) => getId(item, "idDimension", "IdDimension") === id);
+  if (!dimension) return String(id || "");
+  return `${getText(dimension, "numeroDimension", "NumeroDimension")} - ${getText(dimension, "nombreDimension", "NombreDimension")}`;
+}
+
+function getCuentaNamesByIds(
+  cuentas: Array<{ idCuenta?: number; IdCuenta?: number; nombreCuenta?: string; NombreCuenta?: string }>,
+  ids: number[],
+) {
+  return cuentas
+    .filter((cuenta) => ids.includes(getId(cuenta, "idCuenta", "IdCuenta")))
+    .map((cuenta) => getText(cuenta, "nombreCuenta", "NombreCuenta"));
+}
+
+function SummaryList({ rows }: { rows: Array<[string, string | number | null | undefined]> }) {
+  return (
+    <dl className="grid gap-3 rounded-2xl border bg-secondary/30 p-4 text-sm sm:grid-cols-2">
+      {rows.map(([label, value]) => (
+        <div key={label} className="space-y-1">
+          <dt className="text-xs font-medium uppercase tracking-normal text-muted-foreground">{label}</dt>
+          <dd className="break-words font-medium text-foreground">{value || "Sin dato"}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function CreateUserForm(props: Omit<UserAccessFormProps, "mode" | "submitLabel" | "confirmLabel">) {
+  return <UserAccessForm {...props} mode="create" submitLabel="Guardar usuario" confirmLabel="Confirmar registro" />;
+}
+
+type UserAccessFormProps = {
+  mode: "create" | "edit";
+  initialUser?: UsuarioApi;
+  roles: RolApi[];
+  dimensiones: Array<{ idDimension?: number; IdDimension?: number; numeroDimension?: string; NumeroDimension?: string; nombreDimension?: string; NombreDimension?: string }>;
+  licencias: Array<{ idCuenta?: number; IdCuenta?: number; nombreCuenta?: string; NombreCuenta?: string }>;
+  isSaving: boolean;
+  errorMessage: string;
+  submitLabel: string;
+  confirmLabel: string;
+  onSubmit: (user: Partial<UsuarioApi>, licencias: number[]) => void;
+};
+
+function UserAccessForm({
+  mode,
+  initialUser,
   roles,
   dimensiones,
   licencias,
   isSaving,
+  errorMessage,
+  submitLabel,
+  confirmLabel,
   onSubmit,
-}: {
-  roles: RolApi[];
-  dimensiones: Array<{ idDimension?: number; IdDimension?: number; numeroDimension?: string; NumeroDimension?: string; nombreDimension?: string; NombreDimension?: string }>;
-  licencias: Array<{ idLicencia?: number; IdLicencia?: number; nombreLicencia?: string; NombreLicencia?: string }>;
-  isSaving: boolean;
-  onSubmit: (user: Partial<UsuarioApi>, licencias: number[]) => void;
-}) {
-  const [selectedLicencias, setSelectedLicencias] = useState<number[]>([]);
+}: UserAccessFormProps) {
+  const initialLicencias = useMemo(
+    () => (initialUser?.cuentas ?? initialUser?.Cuentas ?? [])
+      .map((cuenta) => getId(cuenta, "idCuenta", "IdCuenta"))
+      .filter(Boolean),
+    [initialUser],
+  );
+  const [selectedLicencias, setSelectedLicencias] = useState<number[]>(initialLicencias);
+  const [pending, setPending] = useState<Partial<UsuarioApi> | null>(null);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
-    onSubmit(
-      {
-        Rut: String(formData.get("rut") ?? ""),
-        NombreUsuario: String(formData.get("nombre") ?? ""),
-        ApellidoPaterno: String(formData.get("apellidoPaterno") ?? ""),
-        ApellidoMaterno: String(formData.get("apellidoMaterno") ?? "") || null,
-        CorreoCorporativo: String(formData.get("correo") ?? ""),
-        Cargo: String(formData.get("cargo") ?? ""),
-        FechaIngreso: String(formData.get("fechaIngreso") ?? ""),
-        finContrato: String(formData.get("fechaTermino") ?? "") || null,
-        IdRol: Number(formData.get("idRol")),
-        IdDimension: Number(formData.get("idDimension")),
-        Activo: true,
-      },
-      selectedLicencias,
-    );
+    setPending({
+      Rut: String(formData.get("rut") ?? ""),
+      NombreUsuario: String(formData.get("nombre") ?? ""),
+      ApellidoPaterno: String(formData.get("apellidoPaterno") ?? ""),
+      ApellidoMaterno: String(formData.get("apellidoMaterno") ?? "") || null,
+      CorreoCorporativo: String(formData.get("correo") ?? ""),
+      FechaIngreso: String(formData.get("fechaIngreso") ?? ""),
+      FinContrato: String(formData.get("fechaTermino") ?? "") || null,
+      IdRol: Number(formData.get("idRol")),
+      IdDimension: Number(formData.get("idDimension")),
+      Activo: formData.get("activo") === "true",
+      IdCuentas: selectedLicencias,
+    });
   }
 
   return (
-    <form className="grid gap-4 md:grid-cols-2" onSubmit={handleSubmit}>
-      <Field name="rut" label="RUT" required />
-      <Field name="nombre" label="Nombre" required />
-      <Field name="apellidoPaterno" label="Apellido paterno" required />
-      <Field name="apellidoMaterno" label="Apellido materno" />
-      <Field name="correo" label="Correo corporativo" type="email" required />
-      <Field name="cargo" label="Cargo" required />
-      <Field name="fechaIngreso" label="Fecha ingreso" type="date" required />
-      <Field name="fechaTermino" label="Fecha termino" type="date" />
-      <Select name="idDimension" label="Dimension" required>
-        {dimensiones.map((dimension) => {
-          const id = getId(dimension, "idDimension", "IdDimension");
-          return <option key={id} value={id}>{`${getText(dimension, "numeroDimension", "NumeroDimension")} - ${getText(dimension, "nombreDimension", "NombreDimension")}`}</option>;
-        })}
-      </Select>
-      <Select name="idRol" label="Rol" required>
-        {roles.map((rol) => {
-          const id = getId(rol, "idRol", "IdRol");
-          return <option key={id} value={id}>{getText(rol, "nombreRol", "NombreRol")}</option>;
-        })}
-      </Select>
-      <div className="space-y-2 md:col-span-2">
-        <p className="text-sm font-medium">Licencias</p>
-        <div className="grid gap-2 rounded-2xl border p-3 sm:grid-cols-2">
-          {licencias.map((licencia) => {
-            const id = getId(licencia, "idLicencia", "IdLicencia");
-            return (
-              <label key={id} className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={selectedLicencias.includes(id)}
-                  onChange={(event) => setSelectedLicencias((current) => event.target.checked ? [...current, id] : current.filter((item) => item !== id))}
-                />
-                {getText(licencia, "nombreLicencia", "NombreLicencia")}
-              </label>
-            );
+    <>
+      <form className="grid gap-4 md:grid-cols-2" onSubmit={handleSubmit}>
+        {errorMessage && <p className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 md:col-span-2">{errorMessage}</p>}
+        <Field name="rut" label="RUT" defaultValue={initialUser?.rut ?? initialUser?.Rut ?? ""} required />
+        <Field name="nombre" label="Nombre" defaultValue={initialUser?.nombreUsuario ?? initialUser?.NombreUsuario ?? ""} required />
+        <Field name="apellidoPaterno" label="Apellido paterno" defaultValue={initialUser?.apellidoPaterno ?? initialUser?.ApellidoPaterno ?? ""} required />
+        <Field name="apellidoMaterno" label="Apellido materno" defaultValue={initialUser?.apellidoMaterno ?? initialUser?.ApellidoMaterno ?? ""} />
+        <Field name="correo" label="Correo corporativo" type="email" defaultValue={initialUser?.correoCorporativo ?? initialUser?.CorreoCorporativo ?? ""} required />
+        <Field name="fechaIngreso" label="Fecha ingreso" type="date" defaultValue={formatDateInput(initialUser?.fechaIngreso ?? initialUser?.FechaIngreso)} required />
+        <Field name="fechaTermino" label="Fecha termino" type="date" defaultValue={formatDateInput(initialUser?.finContrato ?? initialUser?.FinContrato)} />
+        <Select name="idDimension" label="Dimension" defaultValue={String(initialUser?.idDimension ?? initialUser?.IdDimension ?? "")} required>
+          <option value="" disabled>Seleccionar dimension</option>
+          {dimensiones.map((dimension) => {
+            const id = getId(dimension, "idDimension", "IdDimension");
+            return <option key={id} value={id}>{`${getText(dimension, "numeroDimension", "NumeroDimension")} - ${getText(dimension, "nombreDimension", "NombreDimension")}`}</option>;
           })}
+        </Select>
+        <Select name="idRol" label="Rol" defaultValue={String(initialUser?.idRol ?? initialUser?.IdRol ?? "")} required>
+          <option value="" disabled>Seleccionar rol</option>
+          {roles.map((rol) => {
+            const id = getId(rol, "idRol", "IdRol");
+            return <option key={id} value={id}>{getText(rol, "nombreRol", "NombreRol")}</option>;
+          })}
+        </Select>
+        <Select name="activo" label="Estado" defaultValue={String(initialUser?.activo ?? initialUser?.Activo ?? true)} required>
+          <option value="true">Activo</option>
+          <option value="false">Inactivo</option>
+        </Select>
+        <div className="space-y-2 md:col-span-2">
+          <p className="text-sm font-medium">Licencias</p>
+          <div className="grid gap-2 rounded-2xl border p-3 sm:grid-cols-2">
+            {licencias.map((licencia) => {
+              const id = getId(licencia, "idCuenta", "IdCuenta");
+              return (
+                <label key={id} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={selectedLicencias.includes(id)}
+                    onChange={(event) => setSelectedLicencias((current) => event.target.checked ? [...current, id] : current.filter((item) => item !== id))}
+                  />
+                  {getText(licencia, "nombreCuenta", "NombreCuenta")}
+                </label>
+              );
+            })}
+          </div>
         </div>
-      </div>
-      <div className="flex justify-end gap-2 md:col-span-2">
-        <Button type="submit" disabled={isSaving}>{isSaving ? "Guardando..." : "Guardar usuario"}</Button>
-      </div>
-    </form>
+        <div className="flex justify-end gap-2 md:col-span-2">
+          <Button type="submit" disabled={isSaving}>{isSaving ? "Guardando..." : submitLabel}</Button>
+        </div>
+      </form>
+
+      <Dialog open={!!pending} onOpenChange={(open) => !open && !isSaving && setPending(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Confirmar registro</DialogTitle>
+          </DialogHeader>
+          {pending && (
+            <SummaryList
+              rows={[
+                ["RUT", pending.Rut],
+                ["Nombre completo", [pending.NombreUsuario, pending.ApellidoPaterno, pending.ApellidoMaterno].filter(Boolean).join(" ")],
+                ["Correo", pending.CorreoCorporativo],
+                ["Cargo", getRoleNameById(roles, Number(pending.IdRol))],
+                ["Dimension", getDimensionNameById(dimensiones, Number(pending.IdDimension))],
+                ["Fecha ingreso", pending.FechaIngreso],
+                ["Fecha termino contrato", pending.FinContrato || "Sin termino"],
+                ["Licencias seleccionadas", getCuentaNamesByIds(licencias, selectedLicencias).join(", ") || "Sin licencias"],
+                ["Estado", pending.Activo ? "Activo" : "Inactivo"],
+              ]}
+            />
+          )}
+          <div className="flex justify-end gap-3">
+            <Button type="button" variant="outline" disabled={isSaving} onClick={() => setPending(null)}>Cancelar</Button>
+            <Button type="button" disabled={isSaving} onClick={() => {
+              if (!pending) return;
+              onSubmit(pending, selectedLicencias);
+              setPending(null);
+            }}>
+              {isSaving ? "Guardando..." : confirmLabel}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
+}
+
+function formatDateInput(value?: string | null) {
+  if (!value) return "";
+  return value.slice(0, 10);
 }
 
 function Field(props: React.InputHTMLAttributes<HTMLInputElement> & { label: string; name: string }) {

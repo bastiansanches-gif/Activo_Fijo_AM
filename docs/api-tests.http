@@ -1,0 +1,89 @@
+@baseUrl = http://localhost:5077
+
+### Health database
+GET {{baseUrl}}/api/health/database
+
+### Crear dimension de prueba si no existen dimensiones
+POST {{baseUrl}}/api/dimensiones
+Content-Type: application/json
+
+{
+  "numeroDimension": "TEST-001",
+  "nombreDimension": "Dimension QA",
+  "activo": true
+}
+
+### Listar cuentas
+GET {{baseUrl}}/api/cuentas
+
+### Crear usuario con cuentas
+POST {{baseUrl}}/api/usuarios
+Content-Type: application/json
+
+{
+  "rut": "11111111-1",
+  "nombreUsuario": "Usuario",
+  "apellidoPaterno": "Prueba",
+  "apellidoMaterno": "QA",
+  "correoCorporativo": "usuario.prueba@audiomusica.cl",
+  "fechaIngreso": "2026-05-14",
+  "finContrato": null,
+  "idRol": 2,
+  "idDimension": 1,
+  "activo": true,
+  "idCuentas": [1, 4, 10]
+}
+
+### Listar usuarios
+GET {{baseUrl}}/api/usuarios
+
+### Crear activo fijo
+POST {{baseUrl}}/api/activo-fijo
+Content-Type: application/json
+
+{
+  "idDimension": 1,
+  "idUsuario": null,
+  "ram": 16,
+  "idMarca": 1,
+  "idModelo": 1,
+  "idProcesador": 1,
+  "idDiscoDuro": 1,
+  "serial": "NB-TEST-001",
+  "numeroFactura": "F12345",
+  "rutProveedor": "76123456-7",
+  "fechaCompra": "2026-05-14",
+  "detalles": "Notebook de prueba",
+  "idEstadoActivo": 1
+}
+
+### Listar activos fijos
+GET {{baseUrl}}/api/activo-fijo
+
+### Crear herramienta
+POST {{baseUrl}}/api/herramientas
+Content-Type: application/json
+
+{
+  "nombreHerramienta": "Tester red",
+  "tipoHerramienta": "Medicion",
+  "marca": "Fluke",
+  "modelo": "MS2-100",
+  "serial": "HT-TEST-001",
+  "cantidad": 1,
+  "idDimension": 1,
+  "estado": "Disponible",
+  "detalles": "Herramienta de prueba"
+}
+
+### Crear checklist
+POST {{baseUrl}}/api/checklist
+Content-Type: application/json
+
+{
+  "nombreChecklist": "Checklist prueba",
+  "tipoChecklist": "Entrega",
+  "nombreArchivo": "checklist-prueba.pdf",
+  "rutaArchivo": "Storage/Checklists/checklist-prueba.pdf",
+  "extensionArchivo": ".pdf"
+}

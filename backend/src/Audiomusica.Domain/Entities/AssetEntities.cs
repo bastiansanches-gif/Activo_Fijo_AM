@@ -18,9 +18,6 @@ public class Dimension : IHasActivo
     public int IdDimension { get; set; }
     [MaxLength(30)] public string NumeroDimension { get; set; } = string.Empty;
     [MaxLength(120)] public string NombreDimension { get; set; } = string.Empty;
-    [MaxLength(80)] public string Pais { get; set; } = string.Empty;
-    [MaxLength(120)] public string Area { get; set; } = string.Empty;
-    [MaxLength(120)] public string SubArea { get; set; } = string.Empty;
     public bool Activo { get; set; } = true;
 }
 
@@ -38,32 +35,23 @@ public class Usuario : IHasActivo
     [MaxLength(80)] public string ApellidoPaterno { get; set; } = string.Empty;
     [MaxLength(80)] public string? ApellidoMaterno { get; set; }
     [MaxLength(160)] public string CorreoCorporativo { get; set; } = string.Empty;
-    [MaxLength(120)] public string Cargo { get; set; } = string.Empty;
     public DateTime FechaIngreso { get; set; }
     public DateTime? FinContrato { get; set; }
     public int IdRol { get; set; }
     public int IdDimension { get; set; }
     public bool Activo { get; set; } = true;
-    public int? IdCuenta { get; set; }
     public Rol? Rol { get; set; }
     public Dimension? Dimension { get; set; }
-    public Cuenta? Cuenta { get; set; }
-    public ICollection<UsuarioLicencia> UsuarioLicencias { get; set; } = [];
+    public ICollection<UsuarioCuenta> UsuarioCuentas { get; set; } = [];
 }
 
-public class Licencia
+public class UsuarioCuenta
 {
-    public int IdLicencia { get; set; }
-    [MaxLength(120)] public string NombreLicencia { get; set; } = string.Empty;
-}
-
-public class UsuarioLicencia
-{
-    public int IdUsuarioLicencia { get; set; }
+    public int IdUsuarioCuenta { get; set; }
     public int IdUsuario { get; set; }
-    public int IdLicencia { get; set; }
+    public int IdCuenta { get; set; }
     public Usuario? Usuario { get; set; }
-    public Licencia? Licencia { get; set; }
+    public Cuenta? Cuenta { get; set; }
 }
 
 public class Marca
@@ -100,7 +88,7 @@ public class EstadoActivo
     [MaxLength(80)] public string NombreEstado { get; set; } = string.Empty;
 }
 
-public class ActivoFijo : IHasActivo
+public class ActivoFijo
 {
     public int IdActivoFijo { get; set; }
     public int IdDimension { get; set; }
@@ -116,9 +104,7 @@ public class ActivoFijo : IHasActivo
     public DateTime FechaCompra { get; set; }
     [MaxLength(500)] public string? Detalles { get; set; }
     public bool EsAF { get; set; } = true;
-    public int? IdUsuarioRegistro { get; set; }
     public int IdEstadoActivo { get; set; }
-    public bool Activo { get; set; } = true;
     public Dimension? Dimension { get; set; }
     public Usuario? Usuario { get; set; }
     public Marca? Marca { get; set; }
@@ -132,8 +118,8 @@ public class MovimientoActivoFijo
 {
     public int IdMovimiento { get; set; }
     public int IdActivoFijo { get; set; }
-    public int IdDimensionAnterior { get; set; }
-    public int IdDimensionNueva { get; set; }
+    public int? IdDimensionAnterior { get; set; }
+    public int? IdDimensionNueva { get; set; }
     public int? IdUsuarioAnterior { get; set; }
     public int? IdUsuarioNuevo { get; set; }
     public DateTime FechaMovimiento { get; set; }
